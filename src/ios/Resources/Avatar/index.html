@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>SoulNest Avatar</title>
+  <link rel="stylesheet" href="avatar.css">
+</head>
+  <body data-state="idle_01" data-outfit="casual">
+  <main id="stage">
+    <div class="stage-bg"></div>
+    <video id="avatar-video-a" class="video-layer" playsinline muted loop preload="auto"></video>
+    <video id="avatar-video-b" class="video-layer" playsinline muted loop preload="auto"></video>
+    <div id="stage-fallback" class="stage-fallback">
+      <div class="fallback-orb"></div>
+      <div id="fallback-label" class="fallback-label">預覽影片載入中…</div>
+    </div>
+    <div id="status-chip" class="status-chip">待機</div>
+  </main>
+
+  <section id="subtitle" class="subtitle" hidden></section>
+  <div id="user-line" class="user-line" hidden></div>
+
+  <footer id="controls" class="controls">
+    <div id="state-strip" class="state-strip">
+      <button type="button" class="chip" data-state="idle_01">待機</button>
+      <button type="button" class="chip" data-state="idle_02">待機</button>
+      <button type="button" class="chip" data-state="thinking">思考中</button>
+      <button type="button" class="chip" data-state="talk_soft">說話中</button>
+      <button type="button" class="chip" data-state="talk_happy">開心中</button>
+      <button type="button" class="chip" data-state="talk_excited">興奮中</button>
+      <span class="divider"></span>
+      <button type="button" class="chip emotion" data-state="shy">害羞</button>
+      <button type="button" class="chip emotion" data-state="sad">難過</button>
+      <button type="button" class="chip emotion" data-state="angry">生氣</button>
+      <button type="button" class="chip emotion" data-state="caring">關懷</button>
+      <span class="divider"></span>
+      <button type="button" id="demo-btn" class="chip primary">示範流程</button>
+      <button type="button" id="wardrobe-btn" class="chip">衣櫃</button>
+    </div>
+    <div class="input-row">
+      <button type="button" id="mic-btn" class="icon-btn" aria-label="語音輸入">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3z"/>
+          <path d="M17.3 11a5.3 5.3 0 0 1-10.6 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9z"/>
+        </svg>
+      </button>
+      <input id="text-input" type="text" autocomplete="off" autocorrect="off" enterkeyhint="send" placeholder="輸入訊息…">
+      <button type="button" id="send-btn" class="send-btn">送出</button>
+    </div>
+  </footer>
+
+  <div id="wardrobe-panel" class="wardrobe-panel" hidden>
+    <div class="wardrobe-title">選擇造型</div>
+    <div id="wardrobe-options" class="wardrobe-options"></div>
+  </div>
+
+  <script src="manifest.js"></script>
+  <script src="avatar.js"></script>
+</body>
+</html>

@@ -9,6 +9,10 @@ extension Notification.Name {
     /// necessarily persisted. (Relocated here from the removed
     /// OpenWebAppIntent.swift — T-ios-remove-open-webapp-shortcut-intent.)
     static let openWebAppDeepLink = Notification.Name("openWebAppDeepLink")
+    /// Posted by `DeepLinkRouter` when `minis://avatar` lands. Presents the
+    /// SoulNest avatar shell (see `AvatarShellWebViewController`). No
+    /// userInfo — the shell is bundled, not path-resolved.
+    static let openAvatarShellDeepLink = Notification.Name("openAvatarShellDeepLink")
 }
 
 /// Parses `minis://` URLs into navigation actions and dispatches them
@@ -20,6 +24,7 @@ extension Notification.Name {
 ///   minis://views/alarm
 ///   minis://open_terminal[?init_command=…]
 ///   minis://open?session=<sid>&path=<scope-prefixed-path>  (openminis.app launcher round-trip)
+///   minis://avatar     (SoulNest avatar WebApp shell)
 ///   minis://session/<id>      (legacy singular alias)
 ///   minis://sessions/<id>     (canonical — matches minis-sessions-cli)
 ///   minis://settings
@@ -72,6 +77,10 @@ enum DeepLinkRouter {
 
         case "open":
             handleWebAppLauncherReturn(url: url)
+
+        case "avatar":
+            // SoulNest avatar WebApp shell — bundled, immersive presentation.
+            openAvatarShell()
 
         case "session", "sessions":
             // `session/<id>` (legacy singular) and `sessions/<id>` (canonical,
@@ -301,6 +310,19 @@ enum DeepLinkRouter {
                 object: nil,
                 userInfo: ["shortcut": shortcut]
             )
+        }
+    }
+
+    /// Presents the bundled SoulNest avatar shell. Dismisses any leftover
+    /// fullScreenCover (same dance as `handleWebAppLauncherReturn`) so the
+    /// cover actually surfaces, then posts `.openAvatarShellDeepLink`.
+    @MainActor
+    private static func openAvatarShell() {
+        deepLinkLog.info("minis://avatar — opening avatar shell")
+        NotificationCenter.default.post(name: .dismissAllImmersivePresentations, object: nil)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            NotificationCenter.default.post(name: .openAvatarShellDeepLink, object: nil)
         }
     }
 }

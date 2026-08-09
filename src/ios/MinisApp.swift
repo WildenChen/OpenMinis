@@ -94,6 +94,9 @@ struct MinisApp: App {
     /// presenting `WebAppWebViewScreen`. Cleared when the user dismisses the
     /// immersive WebView (back-edge swipe / programmatic dismiss).
     @State private var pendingWebAppPresentation: WebAppPresentation?
+    /// Drives the SoulNest avatar shell fullScreenCover. Set by the
+    /// `.openAvatarShellDeepLink` notification observer (minis://avatar).
+    @State private var isAvatarShellPresented = false
     @State private var pendingURLWhileLocked: URL?
 
     #if DEBUG
@@ -226,12 +229,23 @@ struct MinisApp: App {
                         .ignoresSafeArea()
                         .statusBar(hidden: true)
                 }
+                // SoulNest avatar shell (minis://avatar) — same immersive
+                // treatment as WebApp covers.
+                .fullScreenCover(isPresented: $isAvatarShellPresented) {
+                    AvatarShellWebViewScreen()
+                        .ignoresSafeArea()
+                        .statusBar(hidden: true)
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .openWebAppDeepLink)) { note in
                     guard !SessionLockStore.shared.appIsLocked else { return }
                     guard let shortcut = note.userInfo?["shortcut"] as? WebAppShortcut else { return }
                     Task { @MainActor in
                         Self.presentWebAppDeepLink(shortcut: shortcut, into: $pendingWebAppPresentation)
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .openAvatarShellDeepLink)) { _ in
+                    guard !SessionLockStore.shared.appIsLocked else { return }
+                    isAvatarShellPresented = true
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .dismissAllImmersivePresentations)) { _ in
                     // Tear down any open WebApp fullScreenCover so the
@@ -242,6 +256,9 @@ struct MinisApp: App {
                     // a different WebApp also benefits from this clear.
                     if pendingWebAppPresentation != nil {
                         pendingWebAppPresentation = nil
+                    }
+                    if isAvatarShellPresented {
+                        isAvatarShellPresented = false
                     }
                 }
                 .onAppear {
