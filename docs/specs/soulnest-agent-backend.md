@@ -32,7 +32,7 @@ The backend must not create a second mobile agent layer that competes with the O
 
 ## Shared backend abstraction
 
-OpenMinis should expose one external backend provider surface and keep transport/session details inside backend-specific adapters.
+OpenMinis exposes one external backend provider surface and keeps transport/session details inside backend-specific adapters.
 
 Conceptual shape:
 
@@ -45,24 +45,19 @@ External Agent Backend Provider
         +-- HermesBackend
 ```
 
-The shared provider should receive the current OpenMinis chat session identity in addition to the normal provider inputs.
+The shared provider receives the current OpenMinis chat session identity in addition to the normal provider inputs.
 
 Conceptual interface:
 
 ```swift
 protocol ExternalAgentBackend {
     func stream(
-        sessionID: String,
-        messages: [AgentMessage],
-        systemPrompt: String?,
-        tools: [AgentToolDefinition],
-        maxTokens: Int,
-        thinkingLevel: ThinkingLevel
+        request: AgentBackendRequest
     ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error>
 }
 ```
 
-Exact Swift naming may differ, but the behavior must match this contract.
+The concrete request carries the canonical OpenMinis session identity, messages, tools and normal stream settings. Existing raw-LLM providers keep their existing contract; only the external backend bridge is session-aware.
 
 ## Session semantics
 
@@ -86,27 +81,28 @@ Rules:
 5. The provider must not require users to manually configure one session key per chat.
 6. Backend session continuity must survive normal app navigation and reconnects.
 
-A safe canonical external key is derived from the OpenMinis session ID, for example:
+The canonical external key is derived from the OpenMinis session ID:
 
 ```text
 soulnest:<openminis-session-id>
 ```
 
-Adapters may transform that value to match backend requirements.
+Adapters may transform that value only when required by the backend contract.
 
 ## OpenClaw adapter
 
-OpenClaw should be treated as an agent backend, not as a raw LLM provider.
+OpenClaw is an agent backend, not a raw LLM provider.
 
-The adapter is responsible for:
+The current OpenClaw adapter uses the Gateway OpenAI-compatible `/v1/chat/completions` surface and is responsible for:
 
 - selecting the intended OpenClaw agent, initially Yujie
 - mapping the OpenMinis session ID to a stable OpenClaw session
-- preserving OpenAI-compatible function tool calls so OpenMinis can execute its existing tools
+- preserving OpenAI-compatible client function-tool calls so OpenMinis can execute its existing tools
 - streaming text/tool events back as normal `AgentStreamEvent` values
 - keeping OpenClaw-specific authentication and transport logic out of generic OpenMinis providers
+- sending only the current-turn delta into the persistent OpenClaw session rather than replaying accumulated OpenMinis history
 
-Where supported by the target OpenClaw version, session routing should use its stable session controls rather than reconstructing identity from chat history.
+For OpenClaw, the stable `soulnest:<openminis-session-id>` value is sent as the request `user` identity. Because OpenClaw persists the resulting agent session, later requests must not resend old OpenMinis turns. A normal turn sends the latest user turn; a client-tool follow-up sends the relevant assistant tool call plus matching `role: "tool"` result(s).
 
 ## Hermes adapter
 
@@ -124,7 +120,7 @@ The adapter may use Hermes conversation/session APIs rather than OpenAI Chat Com
 
 ## Tool ownership and roundtrip
 
-OpenMinis must remain the executor for tools that originate from the OpenMinis tool set.
+OpenMinis remains the executor for tools that originate from the OpenMinis tool set.
 
 Expected flow:
 
@@ -142,28 +138,40 @@ The implementation must not proxy every OpenMinis capability through custom Soul
 
 Backend-native tools continue to execute in the backend runtime.
 
-If tool names can collide, the adapter/provider layer must introduce a deterministic ownership rule. Prefer a minimal namespace or metadata mechanism over large prompt-only heuristics.
+### OpenClaw wire naming
 
-Conceptually:
+For the OpenClaw path, ownership is deterministic on the wire:
 
 ```text
-minis.*      -> execute in OpenMinis
-openclaw.*   -> execute in OpenClaw
-hermes.*     -> execute in Hermes
+minis_*          -> caller-supplied OpenMinis/iPhone tool; execute in OpenMinis
+other tool names -> OpenClaw-native/server-side tools; execute in OpenClaw
 ```
 
-The exact wire names may differ if existing OpenMinis tool names must remain unchanged, but ownership must be unambiguous.
+Only caller-supplied OpenMinis tools are namespaced. The adapter applies a reversible generic `minis_` prefix before sending tool definitions or replaying assistant client-tool calls, and strips one prefix from returned client tool calls before handing them to the existing OpenMinis handler.
+
+Examples:
+
+```text
+location       -> minis_location
+calendar_list  -> minis_calendar_list
+photos_search  -> minis_photos_search
+```
+
+Do not rename OpenClaw-native/internal tools. OpenClaw already distinguishes its internal tools from caller-supplied client tools; a SoulNest-specific OpenClaw plugin is not required merely to preserve this ownership boundary.
+
+For overlapping domains such as Calendar, `minis_calendar_*` means the current iPhone/Apple Calendar tool surface. OpenClaw's existing calendar/cloud tools remain server-side capabilities.
+
+Hermes may use a different backend-specific wire convention, but it must preserve the same ownership semantics without changing the OpenMinis-facing tool runtime.
 
 ## System prompt policy
 
-Prompting may reinforce tool ownership, but correctness must not rely only on prose instructions when the transport/provider can preserve deterministic ownership information.
+Prompting may reinforce tool ownership, but correctness must not rely only on prose when the transport can preserve deterministic ownership information.
 
-The backend should be told that:
+For OpenClaw, do **not** forward the full OpenMinis raw-agent system prompt, persona, Skills/MCP prompt fragments, GLOBAL memory, or daily memory into Yujie. OpenClaw owns Yujie's identity, memory and context.
 
-- it is the real SoulNest/Yujie agent brain
-- OpenMinis is the mobile runtime and tool executor
-- OpenMinis-provided tools represent capabilities of the current phone/app session
-- existing backend-native tools remain available according to backend policy
+The OpenClaw adapter may send only a small fixed policy describing the device-tool boundary, for example that `minis_*` tools represent capabilities/data on the current iPhone and should be awaited after invocation.
+
+This prevents SoulNest from creating a second competing persona/memory layer inside OpenMinis.
 
 ## Avatar boundary
 
@@ -191,6 +199,12 @@ Avatar implementation should remain separable from the backend provider so OpenC
 - Switching the configured backend is explicit. The implementation must not silently reinterpret an OpenClaw session as a Hermes session or vice versa.
 - Backend-specific state required for continuation may be persisted only when necessary; prefer deterministic mapping from the OpenMinis session ID when the backend supports it.
 
+## Credential boundary
+
+Backend transport credentials stay inside the backend adapter/configuration layer.
+
+For OpenClaw, the Gateway bearer token is an owner/operator credential and must not be persisted in plaintext `UserDefaults`. Secure persistence belongs in Keychain-backed configuration (#4). Base URL and non-secret agent selection may use normal application configuration.
+
 ## Compatibility constraints
 
 - Existing OpenMinis providers must continue to behave unchanged.
@@ -212,10 +226,11 @@ Avatar implementation should remain separable from the backend provider so OpenC
 ### Tool roundtrip
 
 1. Ask a question that requires an existing OpenMinis device tool.
-2. The external backend requests that tool.
-3. OpenMinis executes the existing tool without a new SoulNest-native implementation.
-4. The result returns to the same backend session.
-5. The backend produces the final response.
+2. The external backend requests the namespaced client tool.
+3. The adapter decodes the returned client-tool name.
+4. OpenMinis executes the existing tool without a new SoulNest-native implementation.
+5. The result returns through `role: "tool"` with the matching `tool_call_id` to the same backend session.
+6. The backend produces the final response.
 
 ### Backend substitution
 
