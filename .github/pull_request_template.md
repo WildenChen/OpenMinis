@@ -1,21 +1,26 @@
-<!--
-  Please read before submitting.
+## What changed
 
-  This repository does not accept pull requests. It is a mirror: development
-  happens in a private tree and is published here on each release, so there is
-  nowhere for a PR to land — it would be overwritten by the next sync.
+<!-- Describe the smallest useful change in this PR. -->
 
-  This is not about the quality of your work. If you open one anyway, we will
-  close it with a link to CONTRIBUTING.md.
+## Why
 
-  What helps instead:
+<!-- State the user-visible or architectural reason. -->
 
-    • Bugs and feature requests → open an issue
-      https://github.com/OpenMinis/OpenMinis/issues
+## Scope
 
-    • Use cases and workflows   → OpenMinis/AwesomeMinis  (accepts PRs)
-    • Skills                    → OpenMinis/MinisSkills   (accepts PRs)
-    • Questions and discussion  → the Telegram group, linked in the README
+- [ ] iOS only, unless another platform is explicitly part of this PR
+- [ ] No unrelated upstream OpenMinis refactor
+- [ ] Existing OpenMinis device capabilities are preserved/reused
+- [ ] No secrets or local credentials are committed
 
-  See CONTRIBUTING.md for the full picture.
--->
+## Validation
+
+<!-- List only validation relevant to this change. -->
+
+- [ ] Relevant build/test completed
+- [ ] Backend/session/tool roundtrip checked when applicable
+- [ ] Real-device validation completed when required, or clearly noted as remaining
+
+## Upstream compatibility
+
+<!-- Note any upstream files touched and why the change could not be purely additive. -->

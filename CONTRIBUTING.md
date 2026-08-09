@@ -1,48 +1,66 @@
-# Contributing
+# Contributing to this OpenMinis fork
 
-Thanks for your interest in Minis.
+This repository is the SoulNest development fork of OpenMinis.
 
-## We do not accept pull requests
+- Fork: `WildenChen/OpenMinis`
+- Upstream: `OpenMinis/OpenMinis`
+- Default integration branch: `main`
 
-This repository is a **mirror**. Development happens in a private tree and is
-published here on each release, so a pull request opened against this
-repository has nowhere to land — merging it would be overwritten by the next
-sync, and we cannot merge it upstream either.
+The upstream repository is a published mirror and does not accept pull requests. This fork does accept pull requests for SoulNest development.
 
-Please do not spend your time preparing one. If you have already opened a PR,
-we will close it with a pointer back to this document; that is not a judgement
-on the work.
+## Development model
 
-## What we do want
+Use focused branches and open pull requests into `main`.
 
-Everything else. The product is shaped by what people report:
+Keep changes small and scoped. Prefer additive SoulNest files and narrow registration hooks over broad modifications to upstream OpenMinis code. Do not refactor unrelated code while implementing a feature.
 
-- **[Open an issue](https://github.com/OpenMinis/OpenMinis/issues)** — bugs,
-  crashes, papercuts, feature requests, questions about behaviour. A clear
-  report is worth more to us than a patch, because it tells us what to build.
-- **Share what you have built** — real workflows and use cases go in
-  **[AwesomeMinis](https://github.com/OpenMinis/AwesomeMinis)**, which does
-  take contributions.
-- **Write a skill** — **[MinisSkills](https://github.com/OpenMinis/MinisSkills)**
-  also takes contributions, and skills are how most people extend Minis
-  without touching the app at all.
-- **Talk to us** — the [Telegram group](https://t.me/+2NzhOJuzRyI1YmM1) is
-  where most day-to-day discussion happens.
+The primary product goal is to preserve OpenMinis as the mobile/device runtime while adding:
 
-## Filing a good issue
+1. a generic external Agent Backend provider,
+2. OpenClaw and Hermes backend adapters,
+3. stable OpenMinis-chat-to-backend-session mapping,
+4. a Yujie/SoulNest avatar experience.
 
-The more of this you can give us, the faster it gets fixed:
+Existing OpenMinis device capabilities should be reused rather than reimplemented.
 
-- Platform and version (Settings → About shows both)
-- What you expected, what happened instead
-- Steps to reproduce, or the prompt that triggered it
-- Which model / provider was selected, if relevant
-- Logs, if the app produced any (Settings → Logs)
+## Pull requests
 
-## Using the source
+Before opening or merging a PR:
 
-The code is GPLv3. You are free to fork it, modify it and run your own build —
-see [BUILDING.md](BUILDING.md). The licence obliges you to publish the source
-of anything you distribute, and to keep it under GPLv3.
+- explain what changed and why,
+- identify the affected platform and scope,
+- confirm no unrelated upstream refactor was included,
+- run the smallest relevant validation for the change,
+- note any real-device or backend validation that remains.
 
-We simply do not merge changes back through this repository.
+This fork uses squash merge so `main` stays easy to compare with and update from upstream.
+
+Do not merge unless the task or repository owner explicitly calls for merge after the required validation.
+
+## iOS development
+
+The current SoulNest work is iOS-first. Do not modify Android unless the task explicitly requires it.
+
+Clone with submodules:
+
+```sh
+git clone --recurse-submodules https://github.com/WildenChen/OpenMinis.git
+```
+
+For an existing clone:
+
+```sh
+git submodule update --init --recursive
+```
+
+Follow `BUILDING.md` for native dependency preparation and build instructions.
+
+## Secrets and local configuration
+
+Never commit API tokens, OpenClaw/Hermes credentials, Apple signing credentials, or local provider customization files. Use the existing `.example` customization templates and local ignored files.
+
+## Upstream sync
+
+When a new OpenMinis release is adopted, keep upstream code recognizable and resolve conflicts by preserving the smallest SoulNest-specific patch surface possible. Do not opportunistically rewrite upstream code during an update.
+
+See `AGENTS.md` for the architecture and implementation rules used by coding agents in this fork.
