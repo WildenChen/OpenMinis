@@ -4267,7 +4267,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
         let tools = makeAgentTools()
 
         var userSystemPrompt = baseSystemPrompt
-        let activeModel = ProviderConfigStore.shared.entry(for: entry.id)?.model ?? selectedModel
+        let activeModel = ProviderConfigStore.shared.entry(for: entry.id)?.model ?? entry.model
         if let capFragment = activeModel.capabilityPromptFragment {
             userSystemPrompt += "\n\n" + capFragment
         }
@@ -4496,7 +4496,7 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             trimOldImagesFromHistory()
 
             // Context window management: offload old tool content if approaching limit
-            let activeModelForOffload = ProviderConfigStore.shared.entry(for: activeEntryId ?? "")?.model ?? selectedModel
+            let activeModelForOffload = ProviderConfigStore.shared.entry(for: activeEntryId ?? "")?.model ?? entry.model
             offloadContextIfNeeded(model: activeModelForOffload, lastContextTokens: turnUsage.latestContextTokens)
 
             // [T-chat-auto-compact-inloop] In-loop context guard. checkContext-
