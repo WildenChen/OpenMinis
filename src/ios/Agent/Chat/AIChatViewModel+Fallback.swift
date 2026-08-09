@@ -56,7 +56,8 @@ extension AIChatViewModel {
                 if let entry = resolveCurrentEntry() {
                     thinkLvl = min(thinkLvl, entry.effectiveMaxThinkingLevel)
                 }
-                let stream = try await currentProvider.streamAgentMessage(
+                let stream = try await streamAgentMessageForCurrentSession(
+                    provider: currentProvider,
                     messages: messages,
                     systemPrompt: systemPrompt,
                     tools: tools,
@@ -134,7 +135,8 @@ extension AIChatViewModel {
                 if let eid = currentEntryId, let entry = ProviderConfigStore.shared.entry(for: eid) {
                     thinkLvl = min(thinkLvl, entry.effectiveMaxThinkingLevel)
                 }
-                let stream = try await currentProvider.streamAgentMessage(
+                let stream = try await streamAgentMessageForCurrentSession(
+                    provider: currentProvider,
                     messages: messages,
                     systemPrompt: currentSystemPrompt,
                     tools: tools,
@@ -358,6 +360,38 @@ extension AIChatViewModel {
                 }
             }
         }
+    }
+
+    /// Supplies the canonical OpenMinis chat ID only to providers that request
+    /// it. All existing providers continue through their unchanged contract.
+    private func streamAgentMessageForCurrentSession(
+        provider: any AgentProvider,
+        messages: [AgentMessage],
+        systemPrompt: String?,
+        tools: [AgentToolDefinition],
+        maxTokens: Int,
+        thinkingLevel: ThinkingLevel
+    ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        if let sessionAwareProvider = provider as? any SessionAwareAgentProvider {
+            guard let sessionID, !sessionID.isEmpty else {
+                throw AgentBackendError.missingSessionID
+            }
+            return try await sessionAwareProvider.streamAgentMessage(
+                sessionID: sessionID,
+                messages: messages,
+                systemPrompt: systemPrompt,
+                tools: tools,
+                maxTokens: maxTokens,
+                thinkingLevel: thinkingLevel
+            )
+        }
+        return try await provider.streamAgentMessage(
+            messages: messages,
+            systemPrompt: systemPrompt,
+            tools: tools,
+            maxTokens: maxTokens,
+            thinkingLevel: thinkingLevel
+        )
     }
 
     // MARK: - Group Fallback Until Content
