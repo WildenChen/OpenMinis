@@ -9,24 +9,63 @@
     return keys.length ? map[keys[0]] : '';
   }
 
+  function stateLabel(manifest, stateId) {
+    var states = (manifest.labels || {}).states || {};
+    return localized(manifest, states[stateId]) || stateId;
+  }
+
   function label(manifest, key) {
     return localized(manifest, (manifest.labels || {})[key]);
   }
 
-  function createAvatarCore(manifest, deps) {
-    var states = Object.keys(manifest.states || {});
-    var outfits = Object.keys(manifest.outfits || {});
-    var state = states.indexOf(manifest.defaultState) !== -1 ? manifest.defaultState : (states[0] || 'idle');
-    var outfit = outfits.indexOf(manifest.defaultOutfit) !== -1 ? manifest.defaultOutfit : (outfits[0] || null);
+  function isTalkingState(stateId) {
+    return stateId.indexOf('talk_') === 0;
+  }
 
-    function resolveClip(stateId, outfitId) {
-      var base = (manifest.states || {})[stateId] || {};
-      var outfitDef = (manifest.outfits || {})[outfitId] || {};
-      return (outfitDef.clips && outfitDef.clips[stateId]) || base.clip || null;
+  function collectStates(manifest) {
+    var order = [];
+    var seen = {};
+    var outfitsMap = manifest.outfits || {};
+    var ids = Object.keys(outfitsMap);
+    if (manifest.defaultOutfit && outfitsMap[manifest.defaultOutfit]) {
+      ids = [manifest.defaultOutfit].concat(ids.filter(function (id) { return id !== manifest.defaultOutfit; }));
+    }
+    ids.forEach(function (id) {
+      Object.keys(outfitsMap[id].states || {}).forEach(function (stateId) {
+        if (!seen[stateId]) {
+          seen[stateId] = true;
+          order.push(stateId);
+        }
+      });
+    });
+    return order;
+  }
+
+  function createAvatarCore(manifest, deps) {
+    var outfits = Object.keys(manifest.outfits || {});
+    var defaultOutfit = outfits.indexOf(manifest.defaultOutfit) !== -1 ? manifest.defaultOutfit : (outfits[0] || null);
+    var states = collectStates(manifest);
+    var defaultDef = (manifest.outfits || {})[defaultOutfit] || {};
+    var state = states.indexOf(defaultDef.defaultIdle) !== -1 ? defaultDef.defaultIdle : (states[0] || 'idle_01');
+    var outfit = defaultOutfit;
+
+    function resolveState(stateId, outfitId) {
+      var target = (manifest.outfits || {})[outfitId];
+      var base = (manifest.outfits || {})[defaultOutfit] || {};
+      if (target) {
+        if (target.states && target.states[stateId]) return target.states[stateId];
+        if (isTalkingState(stateId) && target.fallbackTalking && target.states && target.states[target.fallbackTalking]) {
+          return target.states[target.fallbackTalking];
+        }
+        if (target.defaultIdle && target.states && target.states[target.defaultIdle]) return target.states[target.defaultIdle];
+      }
+      if (base.states && base.states[stateId]) return base.states[stateId];
+      if (base.defaultIdle && base.states && base.states[base.defaultIdle]) return base.states[base.defaultIdle];
+      return null;
     }
 
     function emit() {
-      if (deps && deps.onChange) deps.onChange(state, outfit, resolveClip(state, outfit));
+      if (deps && deps.onChange) deps.onChange(state, outfit, resolveState(state, outfit));
     }
 
     function setState(next) {
@@ -45,7 +84,8 @@
 
     function getState() { return state; }
     function getOutfit() { return outfit; }
-    function getClip() { return resolveClip(state, outfit); }
+    function getResolvedState() { return resolveState(state, outfit); }
+    function getClip() { var d = resolveState(state, outfit); return d ? d.src : null; }
     function getStates() { return states.slice(); }
     function getOutfits() { return outfits.slice(); }
 
@@ -54,6 +94,7 @@
       selectOutfit: selectOutfit,
       getState: getState,
       getOutfit: getOutfit,
+      getResolvedState: getResolvedState,
       getClip: getClip,
       getStates: getStates,
       getOutfits: getOutfits
@@ -87,12 +128,17 @@
       if (p && typeof p.catch === 'function') p.catch(function () {});
     }
 
-    function showClip(url) {
-      if (!url) { failClip(); return; }
+    function showClip(def) {
+      if (!def || !def.src) { setFallback(true); return; }
       var next = currentLayer === layerA ? layerB : layerA;
-      next.src = url;
-      next.loop = true;
+      next.src = def.src;
+      next.loop = def.mode === 'loop';
       next.muted = true;
+      next.removeEventListener('ended', next._onEnded);
+      if (def.mode === 'once' && def.fallback) {
+        next._onEnded = function () { setState(def.fallback); };
+        next.addEventListener('ended', next._onEnded);
+      }
       next.load();
       var settled = false;
       function onReady() {
@@ -132,8 +178,8 @@
 
     function applyState() {
       document.body.setAttribute('data-state', core.getState());
-      if (statusChip) statusChip.textContent = label(manifest, 'status' + cap(core.getState()));
-      showClip(core.getClip());
+      if (statusChip) statusChip.textContent = stateLabel(manifest, core.getState());
+      showClip(core.getResolvedState());
     }
 
     function applyOutfit() {
@@ -142,8 +188,6 @@
       document.documentElement.style.setProperty('--accent', (outfitDef && outfitDef.accent) || '#8b6cff');
       renderWardrobe();
     }
-
-    function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
     function setSubtitle(text) {
       if (!subtitleEl) return;
@@ -164,16 +208,16 @@
       cancelFlow();
       var token = flowToken;
       setState('thinking');
-      setSubtitle(label(manifest, 'statusThinking'));
+      setSubtitle(stateLabel(manifest, 'thinking'));
       window.setTimeout(function () {
         if (token !== flowToken) return;
-        setState('talking');
+        setState('talk_soft');
         setSubtitle(label(manifest, 'cannedReply'));
       }, 900);
       window.setTimeout(function () {
         if (token !== flowToken) return;
         clearSubtitle();
-        setState('idle');
+        setState('idle_01');
       }, 900 + estimateMs(label(manifest, 'cannedReply')));
     }
 
@@ -189,17 +233,17 @@
         userLineEl.hidden = false;
       }
       setState('thinking');
-      setSubtitle(label(manifest, 'statusThinking'));
+      setSubtitle(stateLabel(manifest, 'thinking'));
       window.setTimeout(function () {
         if (token !== flowToken) return;
         if (userLineEl) userLineEl.hidden = true;
-        setState('talking');
+        setState('talk_soft');
         setSubtitle(label(manifest, 'cannedReply'));
       }, 1100);
       window.setTimeout(function () {
         if (token !== flowToken) return;
         clearSubtitle();
-        setState('idle');
+        setState('idle_01');
       }, 1100 + estimateMs(label(manifest, 'cannedReply')));
     }
 
@@ -213,7 +257,7 @@
         btn.className = 'outfit-option' + (id === core.getOutfit() ? ' selected' : '');
         btn.textContent = localized(manifest, outfitDef.name) || id;
         btn.style.setProperty('--outfit-accent', outfitDef.accent || '#8b6cff');
-        btn.addEventListener('click', function () { core.selectOutfit(id); renderWardrobe(); });
+        btn.addEventListener('click', function () { selectOutfit(id); });
         wardrobeOptions.appendChild(btn);
       });
     }
@@ -246,6 +290,7 @@
       document.body.classList.toggle('ui-hidden');
     });
     Array.prototype.forEach.call(document.querySelectorAll('[data-state]'), function (btn) {
+      btn.textContent = stateLabel(manifest, btn.getAttribute('data-state'));
       btn.addEventListener('click', function () {
         setState(btn.getAttribute('data-state'));
       });
@@ -263,13 +308,13 @@
     global.SoulNestAvatar.clearSubtitle = clearSubtitle;
     global.SoulNestAvatar.say = function (text) {
       cancelFlow();
-      setState('talking');
+      setState('talk_soft');
       setSubtitle(text);
       var token = flowToken;
       window.setTimeout(function () {
         if (token !== flowToken) return;
         clearSubtitle();
-        setState('idle');
+        setState('idle_01');
       }, estimateMs(text));
     };
     global.SoulNestAvatar.demo = runDemoFlow;

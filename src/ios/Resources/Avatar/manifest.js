@@ -1,42 +1,55 @@
 window.SOULNEST_MANIFEST = {
-  "name": "SoulNest Avatar",
-  "nameLocalized": { "zh-Hant": "玉潔", "en": "Yujie" },
-  "version": "0.1.0",
+  "schemaVersion": 1,
+  "character": "yujie",
+  "assetVersion": "1",
+  "nameLocalized": { "zh-Hant": "語婕", "en": "Yujie" },
   "locale": "zh-Hant",
   "fallbackLocale": "en",
-  "defaultOutfit": "default",
-  "defaultState": "idle",
-  "states": {
-    "idle":     { "clip": "assets/videos/placeholder-idle.mp4",     "loop": true },
-    "thinking": { "clip": "assets/videos/placeholder-thinking.mp4", "loop": true },
-    "talking":  { "clip": "assets/videos/placeholder-talking.mp4",  "loop": true },
-    "happy":    { "clip": "assets/videos/placeholder-happy.mp4",    "loop": true },
-    "shy":      { "clip": "assets/videos/placeholder-shy.mp4",      "loop": true },
-    "sad":      { "clip": "assets/videos/placeholder-sad.mp4",      "loop": true },
-    "angry":    { "clip": "assets/videos/placeholder-angry.mp4",    "loop": true },
-    "excited":  { "clip": "assets/videos/placeholder-excited.mp4",  "loop": true }
-  },
+  "defaultOutfit": "casual",
   "outfits": {
-    "default": {
-      "name": { "zh-Hant": "預設", "en": "Default" },
+    "casual": {
+      "name": { "zh-Hant": "日常", "en": "Casual" },
       "accent": "#8b6cff",
-      "clips": {}
+      "defaultIdle": "idle_01",
+      "fallbackTalking": "talk_soft",
+      "states": {
+        "idle_01":     { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
+        "idle_02":     { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
+        "thinking":    { "src": "assets/videos/placeholder-thinking.mp4", "mode": "loop" },
+        "talk_soft":   { "src": "assets/videos/placeholder-talking.mp4",  "mode": "loop" },
+        "talk_happy":  { "src": "assets/videos/placeholder-happy.mp4",    "mode": "loop" },
+        "talk_excited":{ "src": "assets/videos/placeholder-excited.mp4",  "mode": "loop" },
+        "shy":         { "src": "assets/videos/placeholder-shy.mp4",      "mode": "once", "fallback": "idle_01" },
+        "sad":         { "src": "assets/videos/placeholder-sad.mp4",      "mode": "once", "fallback": "idle_01" },
+        "angry":       { "src": "assets/videos/placeholder-angry.mp4",    "mode": "once", "fallback": "idle_01" },
+        "caring":      { "src": "assets/videos/placeholder-talking.mp4",  "mode": "once", "fallback": "idle_01" }
+      }
     },
-    "night": {
-      "name": { "zh-Hant": "夜嵐", "en": "Night" },
+    "office": {
+      "name": { "zh-Hant": "辦公室", "en": "Office" },
       "accent": "#12c2a8",
-      "clips": {}
+      "defaultIdle": "idle_01",
+      "fallbackTalking": "talk_soft",
+      "states": {
+        "idle_01":  { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
+        "thinking": { "src": "assets/videos/placeholder-thinking.mp4", "mode": "loop" },
+        "talk_soft":{ "src": "assets/videos/placeholder-talking.mp4",  "mode": "loop" }
+      }
     }
   },
   "labels": {
-    "statusIdle":     { "zh-Hant": "待機", "en": "Idle" },
-    "statusThinking": { "zh-Hant": "思考中", "en": "Thinking" },
-    "statusTalking":  { "zh-Hant": "說話中", "en": "Talking" },
-    "statusHappy":    { "zh-Hant": "開心", "en": "Happy" },
-    "statusShy":      { "zh-Hant": "害羞", "en": "Shy" },
-    "statusSad":      { "zh-Hant": "難過", "en": "Sad" },
-    "statusAngry":    { "zh-Hant": "生氣", "en": "Angry" },
-    "statusExcited":  { "zh-Hant": "興奮", "en": "Excited" },
+    "states": {
+      "idle_01":      { "zh-Hant": "待機",   "en": "Idle" },
+      "idle_02":      { "zh-Hant": "待機",   "en": "Idle" },
+      "thinking":     { "zh-Hant": "思考中", "en": "Thinking" },
+      "talk_soft":    { "zh-Hant": "說話中", "en": "Talking" },
+      "talk_happy":   { "zh-Hant": "開心中", "en": "Talking happy" },
+      "talk_excited": { "zh-Hant": "興奮中", "en": "Talking excited" },
+      "shy":          { "zh-Hant": "害羞",   "en": "Shy" },
+      "sad":          { "zh-Hant": "難過",   "en": "Sad" },
+      "angry":        { "zh-Hant": "生氣",   "en": "Angry" },
+      "caring":       { "zh-Hant": "關懷",   "en": "Caring" }
+    },
     "inputPlaceholder": { "zh-Hant": "輸入訊息…", "en": "Type a message…" },
     "send":            { "zh-Hant": "送出", "en": "Send" },
     "mic":             { "zh-Hant": "語音輸入", "en": "Voice input" },

@@ -8,7 +8,7 @@
   <title>SoulNest Avatar</title>
   <link rel="stylesheet" href="avatar.css">
 </head>
-<body data-state="idle" data-outfit="default">
+  <body data-state="idle_01" data-outfit="casual">
   <main id="stage">
     <div class="stage-bg"></div>
     <video id="avatar-video-a" class="video-layer" playsinline muted loop preload="auto"></video>
@@ -25,15 +25,17 @@
 
   <footer id="controls" class="controls">
     <div id="state-strip" class="state-strip">
-      <button type="button" class="chip" data-state="idle">待機</button>
+      <button type="button" class="chip" data-state="idle_01">待機</button>
+      <button type="button" class="chip" data-state="idle_02">待機</button>
       <button type="button" class="chip" data-state="thinking">思考中</button>
-      <button type="button" class="chip" data-state="talking">說話中</button>
+      <button type="button" class="chip" data-state="talk_soft">說話中</button>
+      <button type="button" class="chip" data-state="talk_happy">開心中</button>
+      <button type="button" class="chip" data-state="talk_excited">興奮中</button>
       <span class="divider"></span>
-      <button type="button" class="chip emotion" data-state="happy">開心</button>
       <button type="button" class="chip emotion" data-state="shy">害羞</button>
       <button type="button" class="chip emotion" data-state="sad">難過</button>
       <button type="button" class="chip emotion" data-state="angry">生氣</button>
-      <button type="button" class="chip emotion" data-state="excited">興奮</button>
+      <button type="button" class="chip emotion" data-state="caring">關懷</button>
       <span class="divider"></span>
       <button type="button" id="demo-btn" class="chip primary">示範流程</button>
       <button type="button" id="wardrobe-btn" class="chip">衣櫃</button>
