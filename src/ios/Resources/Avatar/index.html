@@ -3,9 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#8b6cff">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SoulNest">
   <title>SoulNest Avatar</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="pwa-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="avatar.css">
 </head>
   <body data-state="idle_01" data-outfit="casual">
@@ -59,5 +63,12 @@
 
   <script src="manifest.js"></script>
   <script src="avatar.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js').catch(function () {});
+      });
+    }
+  </script>
 </body>
 </html>
