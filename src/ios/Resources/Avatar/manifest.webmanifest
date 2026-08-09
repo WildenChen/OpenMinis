@@ -1,0 +1,19 @@
+{
+  "name": "SoulNest Avatar",
+  "short_name": "SoulNest",
+  "description": "Standalone presentation surface for the SoulNest Yujie Avatar.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05050a",
+  "theme_color": "#8b6cff",
+  "icons": [
+    {
+      "src": "./pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
