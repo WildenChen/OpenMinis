@@ -58,10 +58,7 @@ struct OpenClawBackend: ExternalAgentBackend {
     // MARK: - ExternalAgentBackend
 
     func stream(request: AgentBackendRequest) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
-        var messages = Self.convertMessages(request.messages)
-        if let sys = request.systemPrompt, !sys.isEmpty {
-            messages.insert(["role": "system", "content": sys], at: 0)
-        }
+        let messages = Self.wireMessages(request.messages)
 
         var body: [String: Any] = [
             "model": model.id,
@@ -177,7 +174,8 @@ struct OpenClawBackend: ExternalAgentBackend {
                                     if let args = fn["arguments"] as? String, !args.isEmpty {
                                         acc.json += args
                                         sawAnyTool = true
-                                        continuation.yield(.toolInputDelta(name: acc.name.isEmpty ? "function" : acc.name, accumulated: acc.json))
+                                        let streamName = acc.name.isEmpty ? "function" : Self.decodedToolName(acc.name)
+                                        continuation.yield(.toolInputDelta(name: streamName, accumulated: acc.json))
                                     }
                                 }
                                 toolAccum[index] = acc
@@ -192,7 +190,7 @@ struct OpenClawBackend: ExternalAgentBackend {
                                     guard !acc.id.isEmpty, !acc.name.isEmpty else { continue }
                                     continuation.yield(.toolCallComplete(
                                         id: sanitizeToolId(acc.id),
-                                        name: acc.name,
+                                        name: Self.decodedToolName(acc.name),
                                         args: Self.parseArgs(acc.json),
                                         metadata: nil
                                     ))
@@ -220,6 +218,65 @@ struct OpenClawBackend: ExternalAgentBackend {
     }
 
     // MARK: - Wire Format Conversion (OpenAI Chat Completions)
+
+    /// Reversible namespace prefix for OpenMinis-provided (device-side) tools on
+    /// the OpenClaw wire. OpenClaw v2026.6.34 can reject a client-tool name that
+    /// collides with an OpenClaw-internal tool, so every OpenMinis tool is
+    /// prefixed before it leaves the device and stripped again when OpenClaw
+    /// calls it back. OpenClaw-native (host-side) tool names are left untouched.
+    static let clientToolPrefix = "minis_"
+
+    /// Encodes an OpenMinis tool name for the OpenClaw wire. Injective: two
+    /// distinct client tools never map to the same wire name, including client
+    /// tools whose names already carry the prefix.
+    static func encodedToolName(_ name: String) -> String {
+        clientToolPrefix + name
+    }
+
+    /// Decodes a tool name returned by OpenClaw. Names in the `minis_` namespace
+    /// are stripped back to the OpenMinis tool name; anything else is an
+    /// OpenClaw-native tool and passes through unchanged.
+    static func decodedToolName(_ name: String) -> String {
+        guard name.hasPrefix(clientToolPrefix) else { return name }
+        return String(name.dropFirst(clientToolPrefix.count))
+    }
+
+    /// The only system message on the OpenClaw wire. The OpenMinis base prompt,
+    /// Skills/MCP and local memory are NOT forwarded — OpenClaw/Yujie owns
+    /// identity, memory and context. This fixed adapter policy only reinforces
+    /// the device-side tool boundary.
+    static let adapterSystemPrompt =
+        "You are the agent brain running on OpenClaw. Tool names prefixed with \"minis_\" are "
+        + "provided by the user's current iPhone (OpenMinis) and execute on-device; call them with "
+        + "valid JSON arguments and wait for their results in the following turn. Handle every other "
+        + "tool host-side as usual. You own identity, memory and context."
+
+    /// Builds the complete wire message array for one turn: the fixed adapter
+    /// policy followed by the current turn's delta only. Shared by `stream()`
+    /// and the unit tests.
+    static func wireMessages(_ messages: [AgentMessage]) -> [[String: Any]] {
+        var result = convertMessages(currentTurnDelta(messages))
+        result.insert(["role": "system", "content": adapterSystemPrompt], at: 0)
+        return result
+    }
+
+    /// The minimum payload for one OpenClaw turn. OpenClaw routes the stable
+    /// `user` session key to a persistent agent session, so re-sending OpenMinis'
+    /// accumulated history would duplicate every old turn inside that session.
+    /// A normal turn sends only its latest user message; a client-tool follow-up
+    /// sends the assistant tool-call message plus its matching `role: tool`
+    /// results so OpenClaw can correlate the call.
+    static func currentTurnDelta(_ messages: [AgentMessage]) -> [AgentMessage] {
+        guard let last = messages.last else { return [] }
+        let isToolFollowUp = last.role == .user && last.parts.contains { part in
+            if case .toolResult = part { return true } else { return false }
+        }
+        if isToolFollowUp,
+           let assistantIndex = messages.dropLast().lastIndex(where: { $0.role == .assistant }) {
+            return Array(messages[assistantIndex...])
+        }
+        return [last]
+    }
 
     /// Converts OpenMinis agent history into OpenAI Chat Completions messages.
     /// Tool results ride as separate `role: "tool"` messages; images become
@@ -292,7 +349,7 @@ struct OpenClawBackend: ExternalAgentBackend {
                         toolCalls.append([
                             "id": sanitizeToolId(id),
                             "type": "function",
-                            "function": ["name": name, "arguments": args],
+                            "function": ["name": Self.encodedToolName(name), "arguments": args],
                         ])
                     }
                     assistant["tool_calls"] = toolCalls
@@ -324,7 +381,7 @@ struct OpenClawBackend: ExternalAgentBackend {
             return [
                 "type": "function",
                 "function": [
-                    "name": tool.name,
+                    "name": Self.encodedToolName(tool.name),
                     "description": tool.description,
                     "parameters": parameters,
                 ],

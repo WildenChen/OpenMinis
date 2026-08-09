@@ -11,9 +11,9 @@ struct OpenClawBackendConfig: Sendable {
     /// Target OpenClaw agent (e.g. `yujie`). Nil delegates to the gateway's
     /// default agent.
     let agentID: String?
-    /// Gateway bearer token. Nil → no `Authorization` header. For the local
-    /// gateway the gateway token is a device-side convenience value; it is
-    /// read from the store below and never written to logs.
+    /// Gateway bearer token. Nil → no `Authorization` header. Not persisted
+    /// anywhere (see `OpenClawBackendConfigStore`); callers must inject it
+    /// programmatically, and it is never written to logs.
     let gatewayToken: String?
     let model: LLMModel
 
@@ -33,14 +33,17 @@ struct OpenClawBackendConfig: Sendable {
 /// Reads OpenClaw transport settings from UserDefaults. No settings UI yet —
 /// these keys are the programmatic setup surface (SoulNest onboarding / debug).
 ///
+/// The gateway bearer token grants full owner/operator access, so it is
+/// deliberately NOT persisted here (or anywhere else yet); it must be injected
+/// programmatically via `OpenClawBackendConfig(gatewayToken:)` until Keychain-
+/// backed credential storage lands.
+///
 /// Keys:
 ///   - `soulnest.openclaw.baseURL`      default `http://127.0.0.1:18789`
 ///   - `soulnest.openclaw.agentID`      nil → gateway default agent
-///   - `soulnest.openclaw.gatewayToken` nil → no Authorization header
 enum OpenClawBackendConfigStore {
     private static let baseURLKey = "soulnest.openclaw.baseURL"
     private static let agentIDKey = "soulnest.openclaw.agentID"
-    private static let gatewayTokenKey = "soulnest.openclaw.gatewayToken"
 
     static func load() -> OpenClawBackendConfig {
         let ud = UserDefaults.standard
@@ -48,7 +51,7 @@ enum OpenClawBackendConfigStore {
         return OpenClawBackendConfig(
             baseURL: baseURL,
             agentID: ud.string(forKey: agentIDKey),
-            gatewayToken: ud.string(forKey: gatewayTokenKey)
+            gatewayToken: nil
         )
     }
 
@@ -65,14 +68,6 @@ enum OpenClawBackendConfigStore {
             UserDefaults.standard.set(id, forKey: agentIDKey)
         } else {
             UserDefaults.standard.removeObject(forKey: agentIDKey)
-        }
-    }
-
-    static func setGatewayToken(_ token: String?) {
-        if let token {
-            UserDefaults.standard.set(token, forKey: gatewayTokenKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: gatewayTokenKey)
         }
     }
 }

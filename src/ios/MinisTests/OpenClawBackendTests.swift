@@ -58,7 +58,7 @@ final class OpenClawBackendTests: XCTestCase {
         let toolCalls = converted[0]["tool_calls"] as? [[String: Any]]
         XCTAssertEqual(toolCalls?.first?["id"] as? String, "call_1-bad")
         let fn = toolCalls?.first?["function"] as? [String: Any]
-        XCTAssertEqual(fn?["name"] as? String, "web_search")
+        XCTAssertEqual(fn?["name"] as? String, "minis_web_search")
         XCTAssertEqual(fn?["arguments"] as? String, #"{"query":"weather"}"#)
     }
 
@@ -117,7 +117,7 @@ final class OpenClawBackendTests: XCTestCase {
         XCTAssertEqual(converted.count, 1)
         XCTAssertEqual(converted[0]["type"] as? String, "function")
         let fn = converted[0]["function"] as? [String: Any]
-        XCTAssertEqual(fn?["name"] as? String, "get_weather")
+        XCTAssertEqual(fn?["name"] as? String, "minis_get_weather")
         XCTAssertEqual(fn?["description"] as? String, "Get weather for a city")
         let params = fn?["parameters"] as? [String: Any]
         XCTAssertEqual(params?["type"] as? String, "object")
@@ -126,6 +126,133 @@ final class OpenClawBackendTests: XCTestCase {
         XCTAssertEqual(city?["type"] as? String, "string")
         XCTAssertEqual(city?["enum"] as? [String], ["SF", "NY"])
     }
+
+    // MARK: - Tool name namespace
+
+    func testToolNameNamespaceRoundtrip() {
+        XCTAssertEqual(OpenClawBackend.encodedToolName("location"), "minis_location")
+        XCTAssertEqual(OpenClawBackend.decodedToolName("minis_location"), "location")
+        XCTAssertEqual(OpenClawBackend.decodedToolName(OpenClawBackend.encodedToolName("location")), "location")
+    }
+
+    func testToolNameNamespaceRoundtripWhenClientNameAlreadyPrefixed() {
+        XCTAssertEqual(OpenClawBackend.encodedToolName("minis_foo"), "minis_minis_foo")
+        XCTAssertEqual(OpenClawBackend.decodedToolName("minis_minis_foo"), "minis_foo")
+        XCTAssertEqual(OpenClawBackend.decodedToolName(OpenClawBackend.encodedToolName("minis_foo")), "minis_foo")
+    }
+
+    func testToolNameNamespaceLeavesOpenClawNativeToolsUntouched() {
+        XCTAssertEqual(OpenClawBackend.decodedToolName("web_search"), "web_search")
+        XCTAssertEqual(OpenClawBackend.decodedToolName("screenshot"), "screenshot")
+    }
+
+    func testToolNameNamespaceIsInjectiveNoCollisions() {
+        let names = ["location", "minis_location", "a", "minis_a", "calendar_list"]
+        let wire = names.map(OpenClawBackend.encodedToolName)
+        XCTAssertEqual(Set(wire).count, names.count)
+        for (original, encoded) in zip(names, wire) {
+            XCTAssertEqual(OpenClawBackend.decodedToolName(encoded), original)
+        }
+    }
+
+    // MARK: - Current-turn delta (no full-history replay)
+
+    private func userMsg(_ text: String) -> AgentMessage {
+        AgentMessage(role: .user, parts: [.text(text)])
+    }
+
+    private func assistantMsg(_ text: String) -> AgentMessage {
+        AgentMessage(role: .assistant, parts: [.text(text)])
+    }
+
+    private func assistantToolMsg(id: String, name: String, input: [String: Any]) -> AgentMessage {
+        AgentMessage(role: .assistant, parts: [.toolUse(id: id, name: name, input: input)])
+    }
+
+    private func toolResultMsg(id: String, content: String) -> AgentMessage {
+        AgentMessage(role: .user, parts: [.toolResult(id: id, name: "x", content: content, isError: false)])
+    }
+
+    func testCurrentTurnDeltaNormalTurnSendsOnlyLatestUserMessage() {
+        let delta = OpenClawBackend.currentTurnDelta([
+            userMsg("where are you"),
+            assistantMsg("I am in SF."),
+            userMsg("what's the weather?"),
+        ])
+        XCTAssertEqual(delta.count, 1)
+        guard case .text("what's the weather?") = delta[0].parts.first else {
+            return XCTFail("expected only the latest user message")
+        }
+    }
+
+    func testCurrentTurnDeltaFirstTurnSendsTheOnlyMessage() {
+        let delta = OpenClawBackend.currentTurnDelta([userMsg("hi")])
+        XCTAssertEqual(delta.count, 1)
+    }
+
+    func testCurrentTurnDeltaToolFollowUpPairsAssistantCallWithResults() {
+        let delta = OpenClawBackend.currentTurnDelta([
+            userMsg("weather in SF"),
+            assistantToolMsg(id: "call_1", name: "location", input: ["city": "SF"]),
+            toolResultMsg(id: "call_1", content: "sunny"),
+        ])
+        XCTAssertEqual(delta.count, 2)
+        XCTAssertEqual(delta[0].role, .assistant)
+        XCTAssertEqual(delta[1].role, .user)
+    }
+
+    func testWireMessagesMultiTurnNeverReplaysOldTurns() {
+        let turn1 = OpenClawBackend.wireMessages([userMsg("where are you")])
+        XCTAssertEqual(turn1.count, 2)  // adapter system policy + one user message
+        XCTAssertEqual(turn1[1]["role"] as? String, "user")
+
+        let turn2 = OpenClawBackend.wireMessages([
+            userMsg("where are you"),
+            assistantMsg("I am in SF."),
+            userMsg("what's the weather?"),
+        ])
+        XCTAssertEqual(turn2.count, 2)
+        let content = turn2[1]["content"] as? [[String: Any]]
+        XCTAssertEqual(content?.first?["text"] as? String, "what's the weather?")
+    }
+
+    func testWireMessagesToolFollowUpCarriesOnlyCallAndResults() {
+        let wire = OpenClawBackend.wireMessages([
+            userMsg("weather in SF"),
+            assistantToolMsg(id: "call_1", name: "location", input: ["city": "SF"]),
+            toolResultMsg(id: "call_1", content: "sunny"),
+        ])
+        XCTAssertEqual(wire.count, 3)  // system policy + assistant tool_calls + role:tool result
+        XCTAssertEqual(wire[0]["role"] as? String, "system")
+        XCTAssertEqual(wire[1]["role"] as? String, "assistant")
+        let toolCalls = wire[1]["tool_calls"] as? [[String: Any]]
+        let fn = toolCalls?.first?["function"] as? [String: Any]
+        XCTAssertEqual(fn?["name"] as? String, "minis_location")
+        XCTAssertEqual(wire[2]["role"] as? String, "tool")
+        XCTAssertEqual(wire[2]["tool_call_id"] as? String, "call_1")
+        XCTAssertEqual(wire[2]["content"] as? String, "sunny")
+    }
+
+    func testWireMessagesUsesFixedAdapterPolicyNotForwardedSystemPrompt() {
+        let wire = OpenClawBackend.wireMessages([userMsg("hi")])
+        XCTAssertEqual(wire.first?["role"] as? String, "system")
+        XCTAssertEqual(wire.first?["content"] as? String, OpenClawBackend.adapterSystemPrompt)
+        let systemMessages = wire.filter { ($0["role"] as? String) == "system" }
+        XCTAssertEqual(systemMessages.count, 1)
+    }
+
+    func testSessionContinuityABReturnA() {
+        let a1 = AgentBackendSession(openMinisSessionID: "chat-A").externalSessionKey
+        let b1 = AgentBackendSession(openMinisSessionID: "chat-B").externalSessionKey
+        XCTAssertEqual(a1, "soulnest:chat-A")
+        XCTAssertEqual(b1, "soulnest:chat-B")
+        XCTAssertNotEqual(a1, b1)
+        // Returning to chat A resumes its original backend session.
+        XCTAssertEqual(AgentBackendSession(openMinisSessionID: "chat-A").externalSessionKey, a1)
+        // A follow-up turn in chat A still carries the same session key.
+        XCTAssertEqual(AgentBackendSession(openMinisSessionID: "chat-A").externalSessionKey, a1)
+    }
+
 
     // MARK: - SSE parsing
 
@@ -189,6 +316,32 @@ final class OpenClawBackendTests: XCTestCase {
         guard case .done(.toolUse) = events[3] else {
             return XCTFail("expected done(.toolUse)")
         }
+    }
+
+    func testParseSSEDecodesNamespacedClientToolCall() async throws {
+        let events = try await collect(OpenClawBackend.parseSSE(stream([
+            #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"minis_get_weather","arguments":"{\"city\":\"SF\"}"}}]}}]}"#,
+            #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+        ])))
+        guard case .toolInputDelta(let streamName, _) = events[0] else {
+            return XCTFail("expected toolInputDelta")
+        }
+        XCTAssertEqual(streamName, "get_weather")
+        guard case .toolCallComplete(_, let name, _, _) = events[1] else {
+            return XCTFail("expected toolCallComplete")
+        }
+        XCTAssertEqual(name, "get_weather")
+    }
+
+    func testParseSSELeavesOpenClawNativeToolCallNameUntouched() async throws {
+        let events = try await collect(OpenClawBackend.parseSSE(stream([
+            #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_9","function":{"name":"host_terminal","arguments":"{}"}}]}}]}"#,
+            #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+        ])))
+        guard case .toolCallComplete(_, let name, _, _) = events[1] else {
+            return XCTFail("expected toolCallComplete")
+        }
+        XCTAssertEqual(name, "host_terminal")
     }
 
     func testParseSSESkipsHeartbeatsAndReadsUsage() async throws {
