@@ -1,12 +1,6 @@
 name: SoulNest MVP IPA
 
 on:
-  push:
-    branches:
-      - soulnest-mvp-to-ipa
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
