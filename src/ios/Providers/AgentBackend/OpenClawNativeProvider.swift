@@ -112,6 +112,10 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
     /// session, so the error is surfaced instead of guessing. Every retry uses
     /// the same AgentBackendRequest and therefore the exact same
     /// `soulnest:<OpenMinis chat id>` session identity.
+    ///
+    /// The same event stream also drives the Avatar presentation layer. This is
+    /// intentionally one-way: Avatar state/subtitles observe agent lifecycle but
+    /// never influence session routing, memory or tool ownership.
     private static func reliableOpenClawStream(
         backend: OpenClawBackend,
         request: AgentBackendRequest
@@ -121,6 +125,11 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 var attempt = 0
+                var subtitleBuffer = ""
+                var avatarIsTalking = false
+                var lastSubtitlePublish = Date.distantPast
+                await MainActor.run { SoulNestAvatarPresentation.thinking() }
+
                 while !Task.isCancelled {
                     var emittedAnyEvent = false
                     do {
@@ -128,11 +137,73 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
                         for try await event in upstream {
                             try Task.checkCancellation()
                             emittedAnyEvent = true
+
+                            switch event {
+                            case .textDelta(let delta):
+                                subtitleBuffer += delta
+                                if !avatarIsTalking {
+                                    avatarIsTalking = true
+                                    await MainActor.run { SoulNestAvatarPresentation.talking() }
+                                }
+                                let now = Date()
+                                if now.timeIntervalSince(lastSubtitlePublish) >= 0.12 {
+                                    lastSubtitlePublish = now
+                                    let snapshot = subtitleBuffer
+                                    await MainActor.run {
+                                        SoulNestAvatarPresentation.talking(subtitle: snapshot)
+                                    }
+                                }
+
+                            case .toolCallComplete:
+                                // Device tool execution happens between this
+                                // iteration and the follow-up request. Visually
+                                // that is a processing/thinking phase, not speech.
+                                avatarIsTalking = false
+                                await MainActor.run { SoulNestAvatarPresentation.thinking() }
+
+                            case .done(let reason):
+                                switch reason {
+                                case .toolUse:
+                                    avatarIsTalking = false
+                                    await MainActor.run { SoulNestAvatarPresentation.thinking() }
+                                default:
+                                    let finalSubtitle = subtitleBuffer
+                                    await MainActor.run {
+                                        if finalSubtitle.isEmpty {
+                                            SoulNestAvatarPresentation.idle()
+                                        } else {
+                                            // `say` keeps the talking clip +
+                                            // subtitle visible for a short
+                                            // presentation window, matching the
+                                            // existing Avatar shell fallback when
+                                            // exact TTS completion metadata is not
+                                            // available.
+                                            SoulNestAvatarPresentation.say(finalSubtitle)
+                                        }
+                                    }
+                                }
+
+                            default:
+                                break
+                            }
                             continuation.yield(event)
+                        }
+
+                        // Some compatible gateways close the stream without an
+                        // explicit final `done`. Do not leave the Avatar stuck in
+                        // thinking/talking in that case.
+                        let finalSubtitle = subtitleBuffer
+                        await MainActor.run {
+                            if finalSubtitle.isEmpty {
+                                SoulNestAvatarPresentation.idle()
+                            } else {
+                                SoulNestAvatarPresentation.say(finalSubtitle)
+                            }
                         }
                         continuation.finish()
                         return
                     } catch is CancellationError {
+                        await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
                         continuation.finish(throwing: CancellationError())
                         return
                     } catch {
@@ -142,18 +213,22 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
                            attempt < retryDelays.count {
                             let delay = retryDelays[attempt]
                             attempt += 1
+                            await MainActor.run { SoulNestAvatarPresentation.thinking() }
                             do {
                                 try await Task.sleep(nanoseconds: delay * 1_000_000_000)
                                 continue
                             } catch {
+                                await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
                                 continuation.finish(throwing: CancellationError())
                                 return
                             }
                         }
+                        await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
                         continuation.finish(throwing: mapped)
                         return
                     }
                 }
+                await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
                 continuation.finish(throwing: CancellationError())
             }
             continuation.onTermination = { _ in task.cancel() }
