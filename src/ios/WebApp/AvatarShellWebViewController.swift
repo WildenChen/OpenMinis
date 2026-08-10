@@ -4,18 +4,68 @@ import WebKit
 
 private let avatarShellLogger = AppLogger(category: "AvatarShell")
 
+extension Notification.Name {
+    /// Presentation-only bridge from the native chat lifecycle into the Avatar
+    /// shell. It deliberately carries no backend/session/tool configuration.
+    static let soulNestAvatarPresentation = Notification.Name("soulnest.avatar.presentation")
+}
+
+/// Tiny presentation contract shared by the chat provider and Avatar host.
+/// All methods run on the main actor and only affect visual state/subtitles.
+/// They cannot change backend routing, memory, tools or credentials.
+@MainActor
+enum SoulNestAvatarPresentation {
+    static func thinking() {
+        post(action: "state", value: "thinking")
+    }
+
+    static func talking(subtitle: String? = nil) {
+        post(action: "state", value: "talk_soft")
+        if let subtitle, !subtitle.isEmpty {
+            post(action: "subtitle", value: subtitle)
+        }
+    }
+
+    static func say(_ text: String) {
+        guard !text.isEmpty else {
+            idle()
+            return
+        }
+        post(action: "say", value: text)
+    }
+
+    static func idle(clearSubtitle: Bool = true) {
+        post(action: "state", value: "idle_01")
+        if clearSubtitle {
+            post(action: "clearSubtitle", value: nil)
+        }
+    }
+
+    private static func post(action: String, value: String?) {
+        var info: [String: Any] = ["action": action]
+        if let value { info["value"] = value }
+        NotificationCenter.default.post(
+            name: .soulNestAvatarPresentation,
+            object: nil,
+            userInfo: info
+        )
+    }
+}
+
 /// Fullscreen, immersive WKWebView host that renders the bundled SoulNest
 /// avatar shell (`Resources/Avatar/index.html` + manifest + clips).
 ///
 /// Mirrors `WebAppWebViewController`'s posture: black immersive canvas, no
 /// status bar, and a navigation policy that keeps the page sandboxed to its
-/// own bundle folder (file: inside the folder + about: only). Unlike the
-/// WebApp host it ships with no JS bridge yet — the backend-to-avatar state
-/// bridge (#12) will add the `WKScriptMessageHandler` seam on
-/// `cfg.userContentController` when the external backend is wired up.
+/// own bundle folder (file: inside the folder + about: only). Native chat
+/// lifecycle events are translated into calls on the existing
+/// `window.SoulNestAvatar` presentation API; the bridge never exposes backend
+/// secrets or native tool objects to JavaScript.
 final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     private var webView: WKWebView!
     private var readAccessRoot: URL!
+    private var pageReady = false
+    private var pendingPresentation: [AnyHashable: Any]?
 
     init() {
         super.init(nibName: nil, bundle: nil)
@@ -24,6 +74,10 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
 
     override var prefersStatusBarHidden: Bool { true }
     override var prefersHomeIndicatorAutoHidden: Bool { true }
@@ -66,6 +120,13 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
         ])
         webView = wv
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAvatarPresentation(_:)),
+            name: .soulNestAvatarPresentation,
+            object: nil
+        )
+
         // Left-edge swipe — iOS-canonical "go back". Belt-and-braces escape
         // hatch alongside the floating close pill.
         let r = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(edgePanned(_:)))
@@ -87,6 +148,50 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
     @objc private func edgePanned(_ r: UIScreenEdgePanGestureRecognizer) {
         guard r.state == .recognized else { return }
         dismiss(animated: true)
+    }
+
+    @objc private func handleAvatarPresentation(_ notification: Notification) {
+        guard let info = notification.userInfo else { return }
+        guard pageReady else {
+            pendingPresentation = info
+            return
+        }
+        applyPresentation(info)
+    }
+
+    private func applyPresentation(_ info: [AnyHashable: Any]) {
+        guard let action = info["action"] as? String else { return }
+        let value = info["value"] as? String
+        let js: String
+        switch action {
+        case "state":
+            guard let value else { return }
+            js = "window.SoulNestAvatar && SoulNestAvatar.setState(\(jsonStringLiteral(value)));"
+        case "subtitle":
+            guard let value else { return }
+            js = "window.SoulNestAvatar && SoulNestAvatar.setSubtitle(\(jsonStringLiteral(value)));"
+        case "say":
+            guard let value else { return }
+            js = "window.SoulNestAvatar && SoulNestAvatar.say(\(jsonStringLiteral(value)));"
+        case "clearSubtitle":
+            js = "window.SoulNestAvatar && SoulNestAvatar.clearSubtitle();"
+        default:
+            return
+        }
+        webView.evaluateJavaScript(js) { _, error in
+            if let error {
+                avatarShellLogger.warning("presentation JS failed action=\(action): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Encode a Swift string as a JavaScript string literal without manually
+    /// escaping quotes/newlines. JSON's string syntax is valid JavaScript.
+    private func jsonStringLiteral(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [value]),
+              let json = String(data: data, encoding: .utf8),
+              json.count >= 2 else { return "\"\"" }
+        return String(json.dropFirst().dropLast())
     }
 
     /// Floating close pill in the top-left. The avatar shell owns its own
@@ -170,6 +275,14 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
         }
         avatarShellLogger.info("blocking external nav scheme=\(scheme) url=\(url.absoluteString.prefix(120))")
         decisionHandler(.cancel)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pageReady = true
+        if let pendingPresentation {
+            self.pendingPresentation = nil
+            applyPresentation(pendingPresentation)
+        }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
