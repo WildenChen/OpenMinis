@@ -241,6 +241,21 @@ final class OpenClawBackendTests: XCTestCase {
         XCTAssertEqual(systemMessages.count, 1)
     }
 
+    func testAdapterPolicyAdvertisesNativeOffloadsThroughExistingShellTool() {
+        let policy = OpenClawBackend.adapterSystemPrompt
+        XCTAssertTrue(policy.contains("minis_shell_execute"))
+        for capability in [
+            "apple-location",
+            "apple-calendar",
+            "apple-photos",
+            "apple-healthkit",
+            "apple-homekit",
+        ] {
+            XCTAssertTrue(policy.contains(capability), "missing \(capability)")
+        }
+        XCTAssertFalse(policy.contains("minis_apple-"))
+    }
+
     func testSessionContinuityABReturnA() {
         let a1 = AgentBackendSession(openMinisSessionID: "chat-A").externalSessionKey
         let b1 = AgentBackendSession(openMinisSessionID: "chat-B").externalSessionKey
