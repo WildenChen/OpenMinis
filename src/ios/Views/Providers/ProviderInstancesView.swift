@@ -14,13 +14,26 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            // [T-mimo-shadow-voice] EVERY instance appears under its providerType
-            // section now (no voice-only exclusion) — a mixed vendor like MiMo
-            // shows its text models here AND a shadow voice row below ("dual
-            // visibility"). Pure-voice vendors (ElevenLabs etc.) still appear here
-            // too; they just have no usable text models, which is expected.
+            // OpenClaw is backed by a real ProviderInstance/ModelEntry but uses
+            // a compatibility marker internally. Present it as its own provider
+            // section rather than leaking the internal `.openAI` storage detail.
+            Section("OpenClaw") {
+                NavigationLink {
+                    ExternalAgentBackendSettingsView()
+                } label: {
+                    OpenClawProviderRow()
+                }
+            } footer: {
+                Text("OpenClaw agents participate in the normal model picker and session bindings. OpenMinis continues to execute iPhone tools on-device.")
+            }
+
+            // [T-mimo-shadow-voice] EVERY normal instance appears under its
+            // providerType section. Native OpenClaw instances are excluded here
+            // because they already have the dedicated peer-level section above.
             ForEach(ProviderType.allCases, id: \.self) { type in
-                let instancesOfType = store.instances.filter { $0.providerType == type }
+                let instancesOfType = store.instances.filter {
+                    $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
+                }
                 if !instancesOfType.isEmpty {
                     Section(type.displayName) {
                         ForEach(instancesOfType) { instance in
@@ -63,21 +76,6 @@ struct ProviderInstancesView: View {
                         }
                     }
                 }
-            }
-
-            Section {
-                NavigationLink {
-                    ExternalAgentBackendSettingsView()
-                } label: {
-                    ExternalAgentBackendRow(backendID: "openclaw", name: "OpenClaw")
-                }
-                // Hermes follows the same backend contract but is not selectable
-                // as an active backend until its adapter lands (#6).
-                ExternalAgentBackendDisabledRow(name: "Hermes", detail: String(localized: "Coming in a later update"))
-            } header: {
-                Text("External Agent Backend")
-            } footer: {
-                Text("An external agent backend becomes the only agent brain when activated. OpenMinis still executes device tools.")
             }
 
             if store.instances.isEmpty {
@@ -197,16 +195,11 @@ struct ProviderInstancesView: View {
     // through to SessionModelPicker.
     private func moveInstances(in type: ProviderType, from source: IndexSet, to destination: Int) {
         let all = store.instances
-        // [T-ios-provider-reorder] The section's ForEach renders llmInstances
-        // (voice-only providers filtered OUT into their own section), so the
-        // section-relative indices from onMove address THAT list. The filter
-        // here must match exactly — including voice-only instances of the same
-        // providerType shifted every index and made drops land on the wrong
-        // element (item jumps elsewhere / bounces back).
-        // [T-mimo-shadow-voice] All instances of this type are section members
-        // now (voice-only exclusion removed) — the section renders the full list.
+        // Match the section's exact filter, including the internal OpenClaw
+        // compatibility marker, so section-relative indices never address an
+        // OpenClaw row that is rendered separately above.
         let isSectionMember: (ProviderInstance) -> Bool = {
-            $0.providerType == type
+            $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
         }
         let sectionIds = all.filter(isSectionMember).map(\.id)
         var reorderedSectionIds = sectionIds
@@ -354,66 +347,51 @@ private struct ShadowVoiceRow: View {
     }
 }
 
-// MARK: - External Agent Backend Rows
+// MARK: - OpenClaw Provider Row
 
-/// Row for a configurable external agent backend. Shows active + credential
-/// status so the list stays informative without revealing any stored secret.
-private struct ExternalAgentBackendRow: View {
-    let backendID: String
-    let name: String
+/// Top-level OpenClaw provider status. The persisted ProviderInstance is a
+/// normal OpenMinis provider; the real Gateway credential stays in its dedicated
+/// device-local Keychain store and is intentionally not rendered.
+private struct OpenClawProviderRow: View {
+    @ObservedObject private var store = ProviderConfigStore.shared
 
-    private var isActive: Bool {
-        AgentBackendConfigStore.loadActive()?.backendID == backendID
+    private var instance: ProviderInstance? {
+        store.instances.first(where: OpenClawNativeProvider.isInstance)
+    }
+
+    private var agentCount: Int {
+        guard let instance else { return 0 }
+        return store.visibleEntries(for: instance.id).count
     }
 
     var body: some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(isActive ? Color.green : Color(UIColor.quaternaryLabel))
+                .fill(instance?.isEnabled == true && OpenClawBackendCredentialStore.isConfigured
+                      ? Color.green : Color(UIColor.quaternaryLabel))
                 .frame(width: 8, height: 8)
             VStack(alignment: .leading, spacing: 2) {
-                Text(name)
+                Text("OpenClaw")
                     .font(.body.weight(.medium))
-                HStack(spacing: 6) {
-                    Text(isActive ? String(localized: "Active") : String(localized: "Inactive"))
+                if instance == nil {
+                    Text("Add Provider")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("·")
-                        .font(.caption)
-                        .foregroundStyle(.quaternary)
-                    Text(OpenClawBackendCredentialStore.isConfigured
-                         ? String(localized: "Credential configured")
-                         : String(localized: "No credential"))
+                } else {
+                    let credential = OpenClawBackendCredentialStore.isConfigured
+                        ? String(localized: "Credential configured")
+                        : String(localized: "Credential required on this device")
+                    Text("\(agentCount) agent(s) · \(credential)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             Spacer()
-        }
-        .padding(.vertical, 2)
-    }
-}
-
-/// Muted, non-interactive row for a backend that is not yet selectable.
-/// Deliberately never persisted as an active configuration.
-private struct ExternalAgentBackendDisabledRow: View {
-    let name: String
-    let detail: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color(UIColor.quaternaryLabel))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.body)
+            if let instance, !instance.isEnabled {
+                Text("Disabled")
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
             }
-            Spacer()
         }
         .padding(.vertical, 2)
     }
