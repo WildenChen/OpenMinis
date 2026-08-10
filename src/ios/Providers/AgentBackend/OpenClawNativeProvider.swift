@@ -91,13 +91,107 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
             model: OpenClawBackend.defaultModel
         )
         let backend = OpenClawBackend(config: config)
-        return try await backend.stream(request: AgentBackendRequest(
+        let request = AgentBackendRequest(
             session: AgentBackendSession(openMinisSessionID: sessionID),
             messages: messages,
             systemPrompt: systemPrompt,
             tools: tools,
             maxTokens: maxTokens,
             thinkingLevel: thinkingLevel
-        ))
+        )
+        return Self.reliableOpenClawStream(backend: backend, request: request)
+    }
+
+    /// Small retry layer scoped only to OpenClaw. The generic OpenMinis retry
+    /// helper returns as soon as it obtains an AsyncThrowingStream, so a network
+    /// failure that happens while consuming that stream cannot be retried there.
+    ///
+    /// We retry only when a transient failure occurs BEFORE any stream event has
+    /// been emitted. Once text/tool output has started, replaying the request
+    /// could duplicate a turn already accepted by the persistent OpenClaw
+    /// session, so the error is surfaced instead of guessing. Every retry uses
+    /// the same AgentBackendRequest and therefore the exact same
+    /// `soulnest:<OpenMinis chat id>` session identity.
+    private static func reliableOpenClawStream(
+        backend: OpenClawBackend,
+        request: AgentBackendRequest
+    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        let retryDelays: [UInt64] = [1, 3, 5]
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                var attempt = 0
+                while !Task.isCancelled {
+                    var emittedAnyEvent = false
+                    do {
+                        let upstream = try await backend.stream(request: request)
+                        for try await event in upstream {
+                            try Task.checkCancellation()
+                            emittedAnyEvent = true
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                        return
+                    } catch is CancellationError {
+                        continuation.finish(throwing: CancellationError())
+                        return
+                    } catch {
+                        let mapped = Self.mapOpenClawError(error)
+                        if !emittedAnyEvent,
+                           Self.isRetryableOpenClawError(mapped),
+                           attempt < retryDelays.count {
+                            let delay = retryDelays[attempt]
+                            attempt += 1
+                            do {
+                                try await Task.sleep(nanoseconds: delay * 1_000_000_000)
+                                continue
+                            } catch {
+                                continuation.finish(throwing: CancellationError())
+                                return
+                            }
+                        }
+                        continuation.finish(throwing: mapped)
+                        return
+                    }
+                }
+                continuation.finish(throwing: CancellationError())
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Normalize OpenClaw transport failures into the same error taxonomy the
+    /// existing chat UI already understands. Keep response bodies short and do
+    /// not include credentials or request payloads.
+    private static func mapOpenClawError(_ error: Error) -> Error {
+        if let llm = error as? LLMError { return llm }
+        if let url = error as? URLError {
+            if url.code == .cancelled { return LLMError.cancelled }
+            return LLMError.networkError(underlying: url)
+        }
+        if let gateway = error as? OpenClawBackendError {
+            switch gateway {
+            case .http(let status, let body):
+                switch status {
+                case 401, 403:
+                    return LLMError.invalidAPIKey(detail: "OpenClaw Gateway authentication failed (HTTP \(status)).")
+                case 429:
+                    return LLMError.rateLimited
+                case 408, 425, 500...599:
+                    return LLMError.transientError(message: "OpenClaw Gateway HTTP \(status)")
+                default:
+                    let compact = body
+                        .replacingOccurrences(of: "\n", with: " ")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let detail = compact.isEmpty ? "" : ": \(String(compact.prefix(240)))"
+                    return LLMError.providerError(message: "OpenClaw Gateway HTTP \(status)\(detail)")
+                }
+            }
+        }
+        return LLMError.unknown(underlying: error)
+    }
+
+    private static func isRetryableOpenClawError(_ error: Error) -> Bool {
+        (error as? LLMError)?.isRetryable == true
     }
 }
