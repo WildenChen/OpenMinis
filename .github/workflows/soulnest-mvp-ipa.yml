@@ -36,9 +36,9 @@ jobs:
 
       - name: Install native build prerequisites
         run: |
-          brew install ninja llvm libarchive pkg-config || true
-          python3 -m pip install --user meson
-          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+          brew install ninja llvm libarchive pkg-config meson || true
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix libarchive)/bin" >> "$GITHUB_PATH"
 
       - name: Cache native iOS dependencies
         uses: actions/cache@v4
