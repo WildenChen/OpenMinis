@@ -29,7 +29,7 @@ struct OpenClawKeychainCredentialStorage: OpenClawCredentialStorage {
         ]
         let attrs: [String: Any] = [
             kSecValueData as String: Data(token.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecAttrSynchronizable as String: false,
         ]
         // Replace/update in place when the item already exists; otherwise add.
