@@ -1,48 +1,69 @@
 import SwiftUI
 
-/// External Agent Backend settings surfaced from the normal Providers screen.
+/// OpenClaw configuration presented from the normal Providers screen.
 ///
-/// MVP surface (issue #4): one OpenClaw backend with backend URL, target agent
-/// ID, Gateway credential (status only — the secret is never redisplayed), and
-/// an explicit Active toggle. No model overrides or arbitrary headers.
+/// OpenClaw is persisted as a real ProviderInstance and each OpenClaw agent is
+/// a normal ModelEntry, so chat readiness, the session model picker and session
+/// bindings all use OpenMinis' existing provider/model flow. Only the transport
+/// remains adapter-specific.
 ///
-/// Persistence:
-///   - URL + agent ID → `OpenClawBackendConfigStore` (UserDefaults)
-///   - Gateway credential → `OpenClawBackendCredentialStore` (Keychain)
-///   - Active backend → `AgentBackendConfigStore.setActive(...)`
+/// Security boundary:
+///   - Gateway URL → OpenClawBackendConfigStore (ordinary local config)
+///   - Gateway owner token → OpenClawBackendCredentialStore (ThisDeviceOnly Keychain)
+///   - ProviderConfigStore receives only a non-secret credential marker so its
+///     existing readiness/routing logic can treat the provider as configured.
 struct ExternalAgentBackendSettingsView: View {
+    @ObservedObject private var store = ProviderConfigStore.shared
+    @Environment(\.dismiss) private var dismiss
+
     @State private var baseURLText = ""
-    @State private var agentIDText = ""
+    @State private var agentIDText = "yujie"
+    @State private var agentDisplayNameText = "語婕"
     @State private var credentialConfigured = false
-    @State private var active = false
 
     @State private var showCredentialInput = false
     @State private var credentialInputText = ""
     @State private var showRemoveConfirm = false
+    @State private var showDeleteProviderConfirm = false
     @State private var errorMessage: String?
     @State private var showError = false
 
+    private var nativeInstance: ProviderInstance? {
+        store.instances.first(where: OpenClawNativeProvider.isInstance)
+    }
+
+    private var configuredAgents: [ModelEntry] {
+        guard let instance = nativeInstance else { return [] }
+        return store.visibleEntries(for: instance.id)
+    }
+
     var body: some View {
         Form {
+            if let instance = nativeInstance {
+                Section("Provider") {
+                    HStack {
+                        Text("OpenClaw")
+                        Spacer()
+                        Text("Provider")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle("Enabled", isOn: Binding(
+                        get: { instance.isEnabled },
+                        set: { setProviderEnabled($0) }
+                    ))
+                }
+            }
+
             Section {
-                TextField(String(localized: "Backend URL"), text: $baseURLText)
+                TextField(String(localized: "Gateway URL"), text: $baseURLText)
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
             } header: {
-                Text("Backend URL")
+                Text("Gateway URL")
             } footer: {
                 Text("OpenClaw Gateway base URL, e.g. http://127.0.0.1:18789")
-            }
-
-            Section {
-                TextField(String(localized: "Agent ID"), text: $agentIDText)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-            } header: {
-                Text("Agent")
-            } footer: {
-                Text("Target OpenClaw agent (e.g. yujie). Leave empty to use the Gateway's default agent.")
             }
 
             Section {
@@ -50,8 +71,8 @@ struct ExternalAgentBackendSettingsView: View {
                     Image(systemName: credentialConfigured ? "checkmark.shield.fill" : "shield")
                         .foregroundStyle(credentialConfigured ? Color.green : Color.secondary)
                     Text(credentialConfigured
-                         ? String(localized: "Credential configured")
-                         : String(localized: "No credential configured"))
+                         ? String(localized: "Credential configured on this device")
+                         : String(localized: "No credential configured on this device"))
                         .foregroundStyle(credentialConfigured ? .primary : .secondary)
                 }
                 if credentialConfigured {
@@ -71,39 +92,67 @@ struct ExternalAgentBackendSettingsView: View {
             } header: {
                 Text("Gateway Credential")
             } footer: {
-                Text("The Gateway bearer token is stored in the iOS Keychain and is never shown again after saving.")
+                Text("The owner/operator bearer token stays in this iPhone's Keychain and is never synced or redisplayed.")
             }
 
             Section {
-                Toggle(isOn: $active) {
-                    Label {
-                        Text(String(localized: "Active backend"))
-                    } icon: {
-                        Image(systemName: "bolt")
-                    }
-                }
-                .onChange(of: active) { _, isOn in
-                    handleActiveChange(isOn)
-                }
+                TextField(String(localized: "Agent ID"), text: $agentIDText)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                TextField(String(localized: "Display Name"), text: $agentDisplayNameText)
+                    .textContentType(.name)
+            } header: {
+                Text(nativeInstance == nil ? "Initial Agent" : "Add or Update Agent")
             } footer: {
-                if active {
-                    if credentialConfigured {
-                        Text("Chat now routes through the OpenClaw backend. Deactivate to switch back to normal providers.")
-                    } else {
-                        Text("Chat routes through OpenClaw, but no Gateway credential is configured — requests will fail auth until one is added.")
+                Text("Each OpenClaw agent is stored as a normal model. For example, agent ID yujie can be shown as 語婕 in the model picker.")
+            }
+
+            if !configuredAgents.isEmpty {
+                Section("Agents / Models") {
+                    ForEach(configuredAgents) { entry in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.model.displayName)
+                                Text(entry.baseModel.id)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                store.removeEntry(entry.id)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
+                        }
                     }
-                } else {
-                    Text("Activating makes the external backend the only agent brain. Only one backend can be active at a time.")
+                }
+            }
+
+            Section {
+                Button {
+                    saveConfiguration()
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text(nativeInstance == nil ? "Add OpenClaw Provider" : "Save & Add/Update Agent")
+                            .font(.body.weight(.semibold))
+                        Spacer()
+                    }
+                }
+                .disabled(agentIDText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if nativeInstance != nil {
+                Section {
+                    Button("Delete OpenClaw Provider", role: .destructive) {
+                        showDeleteProviderConfirm = true
+                    }
                 }
             }
         }
-        .navigationTitle("External Agent Backend")
+        .navigationTitle("OpenClaw")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { saveSettings() }
-            }
-        }
         .sheet(isPresented: $showCredentialInput) {
             NavigationStack {
                 Form {
@@ -127,16 +176,7 @@ struct ExternalAgentBackendSettingsView: View {
                     }
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
-                            let cleaned = credentialInputText.components(separatedBy: .whitespacesAndNewlines).joined()
-                            guard !cleaned.isEmpty else { return }
-                            guard OpenClawBackendCredentialStore.save(cleaned) else {
-                                errorMessage = String(localized: "Failed to save the Gateway credential to the iOS Keychain. Please try again.")
-                                showError = true
-                                return
-                            }
-                            credentialConfigured = true
-                            credentialInputText = ""
-                            showCredentialInput = false
+                            saveCredential()
                         }
                         .disabled(credentialInputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
@@ -148,10 +188,22 @@ struct ExternalAgentBackendSettingsView: View {
             Button("Remove", role: .destructive) {
                 OpenClawBackendCredentialStore.delete()
                 credentialConfigured = OpenClawBackendCredentialStore.isConfigured
+                // The ProviderConfigStore carries only a non-secret readiness
+                // marker, so disable the provider when the real credential is
+                // removed to avoid selecting a backend that cannot authenticate.
+                setProviderEnabled(false)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The stored Gateway token will be removed from the Keychain.")
+            Text("The stored Gateway token will be removed from this device.")
+        }
+        .alert(String(localized: "Delete OpenClaw Provider"), isPresented: $showDeleteProviderConfirm) {
+            Button("Delete", role: .destructive) {
+                deleteProvider()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the OpenClaw provider and its agent/model entries from OpenMinis, and removes the Gateway token from this device.")
         }
         .alert(String(localized: "Cannot Save"), isPresented: $showError) {
             Button("OK", role: .cancel) {}
@@ -166,49 +218,143 @@ struct ExternalAgentBackendSettingsView: View {
     private func loadSettings() {
         let config = OpenClawBackendConfigStore.load()
         baseURLText = config.baseURL.absoluteString
-        agentIDText = config.agentID ?? ""
         credentialConfigured = OpenClawBackendCredentialStore.isConfigured
-        active = AgentBackendConfigStore.loadActive()?.backendID == OpenClawBackend.backendID
+
+        if let first = configuredAgents.first {
+            agentIDText = first.baseModel.id
+            agentDisplayNameText = first.model.displayName
+        } else {
+            agentIDText = config.agentID ?? "yujie"
+            agentDisplayNameText = agentIDText == "yujie" ? "語婕" : agentIDText
+        }
     }
 
-    /// Persists URL + agent ID. When the backend is active the active config is
-    /// refreshed too so the agent ID change takes effect immediately.
-    private func saveSettings() {
-        guard let url = validatedBaseURL() else {
-            errorMessage = String(localized: "Enter a valid backend URL with http:// or https://")
+    private func saveCredential() {
+        let cleaned = credentialInputText.components(separatedBy: .whitespacesAndNewlines).joined()
+        guard !cleaned.isEmpty else { return }
+        guard OpenClawBackendCredentialStore.save(cleaned) else {
+            errorMessage = String(localized: "Failed to save the Gateway credential to the iOS Keychain. Please try again.")
             showError = true
             return
         }
-        let agentID = trimmedAgentID
+        credentialConfigured = true
+        credentialInputText = ""
+        showCredentialInput = false
+    }
+
+    private func saveConfiguration() {
+        guard let url = validatedBaseURL() else {
+            showSaveError(String(localized: "Enter a valid Gateway URL with http:// or https://"))
+            return
+        }
+        guard OpenClawBackendCredentialStore.isConfigured else {
+            showSaveError(String(localized: "Enter the Gateway credential before adding or enabling OpenClaw."))
+            return
+        }
+
+        let agentID = agentIDText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !agentID.isEmpty else {
+            showSaveError(String(localized: "Enter an OpenClaw agent ID."))
+            return
+        }
+        let requestedName = agentDisplayNameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayName = requestedName.isEmpty ? (agentID == "yujie" ? "語婕" : agentID) : requestedName
+
+        // Transport remains adapter-owned. The selected ModelEntry supplies the
+        // agent ID at request time; keeping this value too preserves compatibility
+        // with the previously shipped OpenClaw config and makes migration benign.
         OpenClawBackendConfigStore.setBaseURL(url)
         OpenClawBackendConfigStore.setAgentID(agentID)
-        if active {
-            AgentBackendConfigStore.setActive(AgentBackendConfig(backendID: OpenClawBackend.backendID, agentID: agentID))
-        }
-    }
 
-    /// Explicit activate/deactivate. Activation persists transport settings and
-    /// writes the synthetic backend config through `AgentBackendConfigStore`.
-    private func handleActiveChange(_ isOn: Bool) {
-        if isOn {
-            guard let url = validatedBaseURL() else {
-                errorMessage = String(localized: "Enter a valid backend URL with http:// or https:// before activating.")
-                showError = true
-                active = false
-                return
-            }
-            let agentID = trimmedAgentID
-            OpenClawBackendConfigStore.setBaseURL(url)
-            OpenClawBackendConfigStore.setAgentID(agentID)
-            AgentBackendConfigStore.setActive(AgentBackendConfig(backendID: OpenClawBackend.backendID, agentID: agentID))
+        if let instance = nativeInstance {
+            ensureAgent(agentID: agentID, displayName: displayName, instance: instance)
+            if !instance.isEnabled { setProviderEnabled(true) }
         } else {
-            AgentBackendConfigStore.setActive(nil)
+            guard createNativeProvider(agentID: agentID, displayName: displayName) else { return }
         }
+
+        // A real ProviderInstance is now the source of chat selection. Disable
+        // the legacy synthetic-backend shortcut so it can no longer override the
+        // session's normal provider/model binding.
+        AgentBackendConfigStore.setActive(nil)
     }
 
-    private var trimmedAgentID: String? {
-        let trimmed = agentIDText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+    private func createNativeProvider(agentID: String, displayName: String) -> Bool {
+        let markerB64 = Data(OpenClawNativeProvider.credentialMarker.utf8).base64EncodedString()
+        let payload: [String: Any] = [
+            "providerType": ProviderType.openAI.rawValue,
+            "label": "OpenClaw",
+            "credentialType": ProviderCredential.apiKey.rawValue,
+            // Generic OpenAI helper calls must not hit the real Gateway. The
+            // session-aware agent path uses OpenClawBackendConfigStore instead.
+            "customBaseURL": OpenClawNativeProvider.inertProviderBaseURL,
+            "appendV1Suffix": false,
+            "customUserAgent": OpenClawNativeProvider.providerMarker,
+            "apiKey": markerB64,
+            "models": [[
+                "modelId": agentID,
+                "displayName": displayName,
+                "isCustom": true,
+                "isHidden": false,
+                "contextWindow": 1_000_000,
+                "maxOutputTokens": 16_384,
+                "supportsReasoning": false,
+            ]],
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8),
+              store.importInstanceJSON(json) != nil else {
+            showSaveError(String(localized: "Failed to add the OpenClaw provider."))
+            return false
+        }
+        return true
+    }
+
+    private func ensureAgent(agentID: String, displayName: String, instance: ProviderInstance) {
+        if var existing = store.entries(for: instance.id).first(where: { $0.baseModel.id == agentID }) {
+            if existing.model.displayName != displayName {
+                existing.overrides.displayName = displayName
+                store.updateEntry(existing)
+            }
+            return
+        }
+
+        let model = LLMModel(
+            id: agentID,
+            displayName: displayName,
+            provider: "OpenClaw",
+            modalityOverride: [.textInput, .textOutput],
+            contextWindow: 1_000_000,
+            maxOutputTokens: 16_384,
+            supportsReasoning: false
+        )
+        _ = store.addEntry(ModelEntry(
+            providerInstanceId: instance.id,
+            model: model,
+            isCustom: true
+        ))
+    }
+
+    private func setProviderEnabled(_ enabled: Bool) {
+        guard var instance = nativeInstance, instance.isEnabled != enabled else { return }
+        instance.isEnabled = enabled
+        store.updateInstance(instance)
+    }
+
+    private func deleteProvider() {
+        if let instance = nativeInstance {
+            store.removeInstance(instance.id)
+        }
+        OpenClawBackendCredentialStore.delete()
+        OpenClawBackendConfigStore.setBaseURL(nil)
+        OpenClawBackendConfigStore.setAgentID(nil)
+        AgentBackendConfigStore.setActive(nil)
+        dismiss()
+    }
+
+    private func showSaveError(_ message: String) {
+        errorMessage = message
+        showError = true
     }
 
     private func validatedBaseURL() -> URL? {

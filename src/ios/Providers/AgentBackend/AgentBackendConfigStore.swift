@@ -9,10 +9,8 @@ import Foundation
 /// Transport settings and credentials stay inside each adapter
 /// (`OpenClawBackendConfigStore`).
 ///
-/// No settings UI yet — the value is written programmatically (SoulNest
-/// onboarding / future settings screen). Reads are only hit from MainActor
-/// chat-loop paths, but UserDefaults is thread-safe so the type is not actor
-/// isolated.
+/// Kept for migration/backward compatibility. New OpenClaw configuration is a
+/// normal ProviderInstance/ModelEntry and no longer writes this active state.
 enum AgentBackendConfigStore {
     private static let defaultsKey = "soulnest.agentBackend.config"
 
@@ -31,24 +29,27 @@ enum AgentBackendConfigStore {
         }
     }
 
-    /// True when an external agent backend is currently the active brain.
+    /// True when a legacy external agent backend is currently the active brain.
     static var isActive: Bool { loadActive() != nil }
 }
 
-/// Resolves the synthetic model entry / backend provider the chat loop uses
-/// when an external agent backend is active. Keeping both behind one helper
-/// means the factory hooks (`resolveCurrentEntry`, `makeAgentProvider(for:)`)
-/// only need a single registration point.
+/// Resolves the legacy synthetic model entry / backend provider. A native
+/// OpenClaw ProviderInstance always wins: once it exists, normal provider/model
+/// selection is authoritative and any stale pre-migration Active toggle is
+/// ignored even before the user revisits OpenClaw settings.
 @MainActor
 enum AgentBackendActiveState {
     /// providerInstanceId carried by the synthetic backend entry. Deliberately
-    /// not a real ProviderInstance — the entry exists only to move the
-    /// backend's model through the existing agent loop.
+    /// not a real ProviderInstance — retained only for migration compatibility.
     static let syntheticProviderInstanceId = "__external_agent_backend__"
 
-    /// Returns (backend provider, synthetic entry) for the active backend, or
-    /// nil when none is configured / the adapter is not registered.
+    /// Returns (backend provider, synthetic entry) for the legacy active backend,
+    /// or nil when a native OpenClaw provider exists / nothing is configured /
+    /// the adapter is not registered.
     static func resolved() -> (provider: AgentBackendProvider, entry: ModelEntry)? {
+        if ProviderConfigStore.shared.instances.contains(where: OpenClawNativeProvider.isInstance) {
+            return nil
+        }
         guard let config = AgentBackendConfigStore.loadActive() else { return nil }
         let model: LLMModel
         switch config.backendID {
