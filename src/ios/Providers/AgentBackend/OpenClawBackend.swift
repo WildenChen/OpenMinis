@@ -257,8 +257,11 @@ struct OpenClawBackend: ExternalAgentBackend {
     static let adapterSystemPrompt =
         "You are the agent brain running on OpenClaw. Tool names prefixed with \"minis_\" are "
         + "provided by the user's current iPhone (OpenMinis) and execute on-device; call them with "
-        + "valid JSON arguments and wait for their results in the following turn. Handle every other "
-        + "tool host-side as usual. You own identity, memory and context."
+        + "valid JSON arguments and wait for their results in the following turn. The device exposes "
+        + "capabilities such as apple-location, apple-calendar, apple-reminders and apple-photos; "
+        + "reach each through its minis_ tool, e.g. minis_apple-location — never through an "
+        + "OpenClaw-native tool. Handle every other tool host-side as usual. You own identity, "
+        + "memory and context."
 
     /// Builds the complete wire message array for one turn: the fixed adapter
     /// policy followed by the current turn's delta only. Shared by `stream()`

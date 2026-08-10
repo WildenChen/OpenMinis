@@ -14,24 +14,9 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            // OpenClaw is backed by a real ProviderInstance/ModelEntry but uses
-            // a compatibility marker internally. Present it as its own provider
-            // section rather than leaking the internal `.openAI` storage detail.
-            Section {
-                NavigationLink {
-                    ExternalAgentBackendSettingsView()
-                } label: {
-                    OpenClawProviderRow()
-                }
-            } header: {
-                Text("OpenClaw")
-            } footer: {
-                Text("OpenClaw agents participate in the normal model picker and session bindings. OpenMinis continues to execute iPhone tools on-device.")
-            }
-
             // [T-mimo-shadow-voice] EVERY normal instance appears under its
             // providerType section. Native OpenClaw instances are excluded here
-            // because they already have the dedicated peer-level section above.
+            // and rendered in their own conditional section below.
             ForEach(ProviderType.allCases, id: \.self) { type in
                 let instancesOfType = store.instances.filter {
                     $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
@@ -49,6 +34,20 @@ struct ProviderInstancesView: View {
                             moveInstances(in: type, from: source, to: destination)
                         }
                     }
+                }
+            }
+            let openClawInstances = store.instances.filter(OpenClawNativeProvider.isInstance)
+            if !openClawInstances.isEmpty {
+                Section {
+                    NavigationLink {
+                        ExternalAgentBackendSettingsView()
+                    } label: {
+                        OpenClawProviderRow()
+                    }
+                } header: {
+                    Text("OpenClaw")
+                } footer: {
+                    Text("OpenClaw agents participate in the normal model picker and session bindings. OpenMinis continues to execute iPhone tools on-device.")
                 }
             }
             // [T-mimo-shadow-voice] Voice Services = a read-only SHADOW view of any

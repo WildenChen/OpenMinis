@@ -344,6 +344,32 @@ struct AddProviderView: View {
                     }
                 }
             }
+
+            NavigationLink {
+                ExternalAgentBackendSettingsView()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .frame(width: 32, height: 32)
+                        .background(Color.purple.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("OpenClaw")
+                            .font(.body.weight(.medium))
+                            .foregroundStyle(Color(UIColor.label))
+                        Text("Gateway-hosted agent (Yujie). OpenMinis still executes device tools on-device.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
         } header: {
             Text("Choose Provider")
         } footer: {
