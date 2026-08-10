@@ -103,6 +103,17 @@ enum OpenClawNativeProvider {
     }
 }
 
+enum OpenClawNativeProviderError: LocalizedError {
+    case missingCredential
+
+    var errorDescription: String? {
+        switch self {
+        case .missingCredential:
+            return String(localized: "OpenClaw Gateway credential is not configured on this device. Open Providers → OpenClaw and enter the Gateway credential.")
+        }
+    }
+}
+
 /// OpenAI-backed ProviderInstances normally use OpenAIAgentProvider. Native
 /// OpenClaw instances intentionally reuse that existing factory path, then this
 /// session-aware extension swaps only the runtime transport to OpenClawBackend.
@@ -127,11 +138,14 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
         }
 
         let stored = OpenClawBackendConfigStore.load()
+        guard let gatewayToken = stored.gatewayToken, !gatewayToken.isEmpty else {
+            throw OpenClawNativeProviderError.missingCredential
+        }
         let selectedAgentID = model.id.trimmingCharacters(in: .whitespacesAndNewlines)
         let config = OpenClawBackendConfig(
             baseURL: stored.baseURL,
             agentID: selectedAgentID.isEmpty ? stored.agentID : selectedAgentID,
-            gatewayToken: stored.gatewayToken,
+            gatewayToken: gatewayToken,
             model: OpenClawBackend.defaultModel
         )
         let backend = OpenClawBackend(config: config)
