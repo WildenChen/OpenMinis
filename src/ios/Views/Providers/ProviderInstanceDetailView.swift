@@ -157,13 +157,15 @@ struct ProviderInstanceDetailView: View {
             customBaseURLSection(instance)
 
             if FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) {
-                Section("Agent / Profile") {
+                Section {
                     TextField("Agent / Profile ID", text: $editingAgentTargetID)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onAppear { editingAgentTargetID = FirstClassAgentBackendProvider.targetID(for: instance) ?? "" }
                         .onSubmit { saveAgentTargetID(instance) }
                         .onChange(of: editingAgentTargetID) { _ in saveAgentTargetID(instance) }
+                } header: {
+                    Text("Agent / Profile")
                 } footer: {
                     Text("Changing this value applies to new turns while preserving the OpenMinis chat session mapping.")
                 }
