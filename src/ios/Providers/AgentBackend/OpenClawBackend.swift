@@ -125,11 +125,29 @@ struct OpenClawBackend: ExternalAgentBackend {
                 var toolAccum: [Int: (id: String, name: String, json: String)] = [:]
                 var sawAnyTool = false
                 var emittedTextStart = false
+                // Flushes every complete accumulated tool call in index order and
+                // ends the turn. Shared by the `finish_reason: "tool_calls"`
+                // branch and the `[DONE]` tail so a gateway that omits the final
+                // finish chunk never silently drops an in-flight tool call.
+                func flushToolCalls() {
+                    for (_, acc) in toolAccum.sorted(by: { $0.key < $1.key }) {
+                        guard !acc.id.isEmpty, !acc.name.isEmpty else { continue }
+                        continuation.yield(.toolCallComplete(
+                            id: sanitizeToolId(acc.id),
+                            name: Self.decodedToolName(acc.name),
+                            args: Self.parseArgs(acc.json),
+                            metadata: nil
+                        ))
+                    }
+                    continuation.yield(.done(stopReason: .toolUse))
+                }
                 do {
                     for try await line in lineStream {
                         guard let payload = Self.ssePayload(from: line) else { continue }
                         if payload == "[DONE]" {
-                            if !sawAnyTool {
+                            if sawAnyTool {
+                                flushToolCalls()
+                            } else {
                                 continuation.yield(.done(stopReason: .endTurn))
                             }
                             break
@@ -186,16 +204,7 @@ struct OpenClawBackend: ExternalAgentBackend {
                             switch finish {
                             case "tool_calls":
                                 sawAnyTool = true
-                                for (_, acc) in toolAccum.sorted(by: { $0.key < $1.key }) {
-                                    guard !acc.id.isEmpty, !acc.name.isEmpty else { continue }
-                                    continuation.yield(.toolCallComplete(
-                                        id: sanitizeToolId(acc.id),
-                                        name: Self.decodedToolName(acc.name),
-                                        args: Self.parseArgs(acc.json),
-                                        metadata: nil
-                                    ))
-                                }
-                                continuation.yield(.done(stopReason: .toolUse))
+                                flushToolCalls()
                             case "stop":
                                 continuation.yield(.done(stopReason: .endTurn))
                             case "length":

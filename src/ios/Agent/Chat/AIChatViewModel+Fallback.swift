@@ -373,11 +373,11 @@ extension AIChatViewModel {
         thinkingLevel: ThinkingLevel
     ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
         if let sessionAwareProvider = provider as? any SessionAwareAgentProvider {
-            guard let sessionID, !sessionID.isEmpty else {
+            guard let sessionId, !sessionId.isEmpty else {
                 throw AgentBackendError.missingSessionID
             }
             return try await sessionAwareProvider.streamAgentMessage(
-                sessionID: sessionID,
+                sessionID: sessionId,
                 messages: messages,
                 systemPrompt: systemPrompt,
                 tools: tools,

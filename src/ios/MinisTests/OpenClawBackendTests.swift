@@ -397,6 +397,201 @@ final class OpenClawBackendTests: XCTestCase {
         XCTAssertTrue(OpenClawBackend.parseArgs("{not json").isEmpty)
     }
 
+    func testParseSSEToolCallWithDoneMarkerOnlyStillCompletes() async throws {
+        // A gateway may end the tool-call stream with `data: [DONE]` and omit
+        // the final `finish_reason: "tool_calls"` chunk. The accumulated call
+        // must still be flushed, not silently dropped (the drop turned into an
+        // endless empty-response retry).
+        let events = try await collect(OpenClawBackend.parseSSE(stream([
+            #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"minis_get_location","arguments":"{\"accuracy\":\"high\"}"}}]}}]}"#,
+            "data: [DONE]",
+        ])))
+        XCTAssertEqual(events.count, 3)
+        guard case .toolInputDelta(let streamName, _) = events[0] else {
+            return XCTFail("expected toolInputDelta first")
+        }
+        XCTAssertEqual(streamName, "get_location")
+        guard case .toolCallComplete(_, let name, let args, _) = events[1] else {
+            return XCTFail("expected toolCallComplete")
+        }
+        XCTAssertEqual(name, "get_location")
+        XCTAssertEqual(args["accuracy"] as? String, "high")
+        guard case .done(.toolUse) = events[2] else {
+            return XCTFail("expected done(.toolUse)")
+        }
+    }
+
+    // MARK: - Tool roundtrip (#9)
+
+    /// Runs the full OpenClaw → OpenMinis → OpenClaw cycle for one device tool
+    /// call: decodes the SSE tool call the way the agent loop does (Phase 1),
+    /// builds the `agentHistory` the loop would hold after executing the tool
+    /// on-device, then re-encodes the follow-up wire messages (Phase 2).
+    /// Asserts the decode half produced a decoded name + `done(.toolUse)`.
+    private func roundtripHistory(
+        sseLines: [String],
+        resultContent: String
+    ) async throws -> [AgentMessage] {
+        let events = try await collect(OpenClawBackend.parseSSE(stream(sseLines)))
+        var decodedID: String?
+        var decodedName: String?
+        var decodedArgs: [String: Any] = [:]
+        var doneSeen = false
+        for event in events {
+            switch event {
+            case .toolCallComplete(let id, let name, let args, _):
+                decodedID = id
+                decodedName = name
+                decodedArgs = args
+            case .done(let reason):
+                if case .toolUse = reason { doneSeen = true }
+            default:
+                break
+            }
+        }
+        guard let decodedID, let decodedName, doneSeen else {
+            XCTFail("expected a decoded device tool call + done(.toolUse)")
+            return []
+        }
+        return [
+            AgentMessage(role: .user, parts: [.text("please use the device tool")]),
+            AgentMessage(role: .assistant, parts: [.toolUse(id: decodedID, name: decodedName, input: decodedArgs)]),
+            AgentMessage(role: .user, parts: [.toolResult(id: decodedID, name: decodedName, content: resultContent, isError: false)]),
+        ]
+    }
+
+    func testToolRoundtripLocationDeviceCall() async throws {
+        let history = try await roundtripHistory(
+            sseLines: [
+                #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_loc","function":{"name":"minis_get_location","arguments":"{\"accuracy\":\"high\"}"}}]}}]}"#,
+                #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            ],
+            resultContent: "37.7749, -122.4194 (Cupertino)"
+        )
+        let wire = OpenClawBackend.wireMessages(history)
+        XCTAssertEqual(wire.count, 3)  // adapter system policy + assistant + role:tool
+        let assistant = wire[1]
+        XCTAssertEqual(assistant["role"] as? String, "assistant")
+        let toolCalls = assistant["tool_calls"] as? [[String: Any]]
+        let fn = toolCalls?.first?["function"] as? [String: Any]
+        XCTAssertEqual(toolCalls?.first?["id"] as? String, "call_loc")
+        XCTAssertEqual(fn?["name"] as? String, "minis_get_location")
+        let tool = wire[2]
+        XCTAssertEqual(tool["role"] as? String, "tool")
+        XCTAssertEqual(tool["tool_call_id"] as? String, "call_loc")
+        XCTAssertEqual(tool["content"] as? String, "37.7749, -122.4194 (Cupertino)")
+    }
+
+    func testToolRoundtripCalendarCreateEventDeviceCall() async throws {
+        let history = try await roundtripHistory(
+            sseLines: [
+                #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_cal","function":{"name":"minis_calendar_create_event","arguments":"{\"title\":\"Dentist\"}"}}]}}]}"#,
+                #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            ],
+            resultContent: "Event created: Dentist at 2026-08-11 10:00"
+        )
+        let wire = OpenClawBackend.wireMessages(history)
+        let fn = ((wire[1]["tool_calls"] as? [[String: Any]])?.first?["function"] as? [String: Any])
+        XCTAssertEqual(fn?["name"] as? String, "minis_calendar_create_event")
+        XCTAssertEqual(wire[2]["role"] as? String, "tool")
+        XCTAssertEqual(wire[2]["tool_call_id"] as? String, "call_cal")
+    }
+
+    func testToolRoundtripToolCallIDSurvivesSanitization() async throws {
+        // OpenClaw may hand back provider-ish ids containing `|`. The sanitized
+        // form must be identical in the assistant `tool_calls` id and the
+        // `role: tool` `tool_call_id` so the gateway can pair them (a mismatch
+        // is an API 400).
+        let history = try await roundtripHistory(
+            sseLines: [
+                #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_abc|fc_1","function":{"name":"minis_get_location","arguments":"{}"}}]}}]}"#,
+                #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            ],
+            resultContent: "San Francisco"
+        )
+        let wire = OpenClawBackend.wireMessages(history)
+        let toolCallID = ((wire[1]["tool_calls"] as? [[String: Any]])?.first?["id"] as? String)
+        XCTAssertEqual(toolCallID, "call_abc-fc_1")
+        XCTAssertEqual(wire[2]["tool_call_id"] as? String, toolCallID)
+    }
+
+    func testToolRoundtripParallelDeviceCallsStayPaired() async throws {
+        let events = try await collect(OpenClawBackend.parseSSE(stream([
+            #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"minis_get_location","arguments":"{}"}},{"index":1,"id":"call_b","function":{"name":"minis_calendar_list","arguments":"{}"}}]}}]}"#,
+            #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+        ])))
+        var completed: [(String, String)] = []
+        for event in events {
+            if case .toolCallComplete(let id, let name, _, _) = event {
+                completed.append((id, name))
+            }
+        }
+        XCTAssertEqual(completed.map(\.0), ["call_a", "call_b"])
+        XCTAssertEqual(completed.map(\.1), ["get_location", "calendar_list"])
+
+        // The loop's history after on-device execution: one assistant message
+        // with both tool_uses, then one user message with both tool_results
+        // in the originating order (parallel tool dispatch preserves order).
+        let history = [
+            AgentMessage(role: .user, parts: [.text("what's around?")]),
+            AgentMessage(role: .assistant, parts: [
+                .toolUse(id: "call_a", name: "get_location", input: [:]),
+                .toolUse(id: "call_b", name: "calendar_list", input: [:]),
+            ]),
+            AgentMessage(role: .user, parts: [
+                .toolResult(id: "call_a", name: "get_location", content: "Cupertino", isError: false),
+                .toolResult(id: "call_b", name: "calendar_list", content: "No events", isError: false),
+            ]),
+        ]
+        let wire = OpenClawBackend.wireMessages(history)
+        XCTAssertEqual(wire.count, 4)  // system + assistant + 2× role:tool
+        let toolCalls = wire[1]["tool_calls"] as? [[String: Any]]
+        XCTAssertEqual(toolCalls?.count, 2)
+        let names = toolCalls?.compactMap { (($0["function"] as? [String: Any])?["name"] as? String) }
+        XCTAssertEqual(names, ["minis_get_location", "minis_calendar_list"])
+        XCTAssertEqual(wire[2]["role"] as? String, "tool")
+        XCTAssertEqual(wire[2]["tool_call_id"] as? String, "call_a")
+        XCTAssertEqual(wire[3]["role"] as? String, "tool")
+        XCTAssertEqual(wire[3]["tool_call_id"] as? String, "call_b")
+    }
+
+    func testToolRoundtripMultiRoundSendsOnlyLatestPair() {
+        // Two consecutive tool rounds already executed. The next OpenClaw turn
+        // must re-send ONLY the round-2 assistant call + its result — round 1
+        // stays in the OpenClaw session (no full-history replay).
+        let delta = OpenClawBackend.currentTurnDelta([
+            userMsg("plan my day"),
+            assistantToolMsg(id: "call_1", name: "get_location", input: [:]),
+            toolResultMsg(id: "call_1", content: "Cupertino"),
+            assistantToolMsg(id: "call_2", name: "calendar_create_event", input: ["title": "Lunch"]),
+            toolResultMsg(id: "call_2", content: "Created"),
+        ])
+        XCTAssertEqual(delta.count, 2)
+        XCTAssertEqual(delta[0].role, .assistant)
+        guard case .toolUse(let id, let name, _) = delta[0].parts.first else {
+            return XCTFail("expected tool_use")
+        }
+        XCTAssertEqual(id, "call_2")
+        XCTAssertEqual(name, "calendar_create_event")
+        XCTAssertEqual(delta[1].role, .user)
+    }
+
+    func testToolRoundtripNewUserTurnAfterFinalAnswerSendsOnlyNewText() {
+        // After the tool roundtrip converged to a final answer, the next user
+        // turn is a plain text delta — no stale tool internals leak through.
+        let delta = OpenClawBackend.currentTurnDelta([
+            userMsg("plan my day"),
+            assistantToolMsg(id: "call_1", name: "get_location", input: [:]),
+            toolResultMsg(id: "call_1", content: "Cupertino"),
+            assistantMsg("Here's your plan for the day."),
+            userMsg("thanks!"),
+        ])
+        XCTAssertEqual(delta.count, 1)
+        guard case .text("thanks!") = delta[0].parts.first else {
+            return XCTFail("expected only the new user text")
+        }
+    }
+
     // MARK: - Provider bridging
 
     func testProviderBridgesSessionIDToBackendRequest() async throws {

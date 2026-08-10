@@ -17,12 +17,14 @@ struct ProviderInstancesView: View {
             // OpenClaw is backed by a real ProviderInstance/ModelEntry but uses
             // a compatibility marker internally. Present it as its own provider
             // section rather than leaking the internal `.openAI` storage detail.
-            Section("OpenClaw") {
+            Section {
                 NavigationLink {
                     ExternalAgentBackendSettingsView()
                 } label: {
                     OpenClawProviderRow()
                 }
+            } header: {
+                Text("OpenClaw")
             } footer: {
                 Text("OpenClaw agents participate in the normal model picker and session bindings. OpenMinis continues to execute iPhone tools on-device.")
             }

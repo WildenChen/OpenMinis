@@ -139,6 +139,8 @@
 		E3C100001 /* OpenClawBackendCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000011 /* OpenClawBackendCredentialStore.swift */; };
 		E3B100012 /* ModelsDevAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D00018 /* ModelsDevAPI.swift */; };
 		E3B100013 /* ThinkingLevelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5TLC0002 /* ThinkingLevelCatalog.swift */; };
+		E3B100014 /* ModelGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D00014 /* ModelGroup.swift */; };
+		E3B000018 /* OpenClawNativeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000019 /* OpenClawNativeProvider.swift */; };
 		E5A000001 /* default_mount in Resources */ = {isa = PBXBuildFile; fileRef = E5A000011 /* default_mount */; };
 		E5AT00003 /* AudioTogglePlaybackIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AT00011 /* AudioTogglePlaybackIntent.swift */; };
 		E5AT00004 /* AudioTogglePlaybackIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AT00011 /* AudioTogglePlaybackIntent.swift */; };
@@ -429,6 +431,8 @@
 		E5VMC0005 /* AIChatViewModel+Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VMC0015 /* AIChatViewModel+Persistence.swift */; };
 		E5VMC0006 /* AIChatViewModel+BackgroundTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VMC0016 /* AIChatViewModel+BackgroundTask.swift */; };
 		E5VMC0007 /* AIChatViewModel+ConcurrentTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VMC0017 /* AIChatViewModel+ConcurrentTools.swift */; };
+		E5ATP001 /* AgentToolPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ATP011 /* AgentToolPreflight.swift */; };
+		E5ATP002 /* AgentToolPreflight.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5ATP011 /* AgentToolPreflight.swift */; };
 		E5VMD0001 /* MinisURLPathDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5VMD0011 /* MinisURLPathDecoding.swift */; };
 		E5VTS1001 /* VoiceTextSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7656F4130247E4002A3AC0C /* VoiceTextSanitizer.swift */; };
 		E5W000001 /* PortableRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5W000011 /* PortableRecord.swift */; };
@@ -738,6 +742,7 @@
 		E3B000015 /* AgentBackendConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackendConfigStore.swift; sourceTree = "<group>"; };
 		E3B000016 /* OpenClawBackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackendConfig.swift; sourceTree = "<group>"; };
 		E3B000017 /* OpenClawBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackend.swift; sourceTree = "<group>"; };
+		E3B000019 /* OpenClawNativeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawNativeProvider.swift; sourceTree = "<group>"; };
 		E3C000011 /* OpenClawBackendCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackendCredentialStore.swift; sourceTree = "<group>"; };
 		E3C000012 /* ExternalAgentBackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalAgentBackendSettingsView.swift; sourceTree = "<group>"; };
 		E5A000011 /* default_mount */ = {isa = PBXFileReference; lastKnownFileType = folder; path = default_mount; sourceTree = "<group>"; };
@@ -1051,6 +1056,7 @@
 		E5VMC0015 /* AIChatViewModel+Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIChatViewModel+Persistence.swift"; sourceTree = "<group>"; };
 		E5VMC0016 /* AIChatViewModel+BackgroundTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIChatViewModel+BackgroundTask.swift"; sourceTree = "<group>"; };
 		E5VMC0017 /* AIChatViewModel+ConcurrentTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIChatViewModel+ConcurrentTools.swift"; sourceTree = "<group>"; };
+		E5ATP011 /* AgentToolPreflight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolPreflight.swift; sourceTree = "<group>"; };
 		E5VMD0011 /* MinisURLPathDecoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinisURLPathDecoding.swift; sourceTree = "<group>"; };
 		E5W000011 /* PortableRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PortableRecord.swift; sourceTree = "<group>"; };
 		E5W000012 /* Syncable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Syncable.swift; sourceTree = "<group>"; };
@@ -1407,6 +1413,7 @@
 				E3B000015 /* AgentBackendConfigStore.swift */,
 				E3B000016 /* OpenClawBackendConfig.swift */,
 				E3B000017 /* OpenClawBackend.swift */,
+				E3B000019 /* OpenClawNativeProvider.swift */,
 				E3C000011 /* OpenClawBackendCredentialStore.swift */,
 			);
 			path = AgentBackend;
@@ -1908,6 +1915,7 @@
 				E5VMC0015 /* AIChatViewModel+Persistence.swift */,
 				E5VMC0016 /* AIChatViewModel+BackgroundTask.swift */,
 				E5VMC0017 /* AIChatViewModel+ConcurrentTools.swift */,
+				E5ATP011 /* AgentToolPreflight.swift */,
 				E53000014 /* ChatStore.swift */,
 				BB1000110F700000000000AA /* ContextPolicy.swift */,
 				E5FMI0011 /* FileMentionIndex.swift */,
@@ -2518,6 +2526,8 @@
 				E3C100001 /* OpenClawBackendCredentialStore.swift in Sources */,
 				E3B100012 /* ModelsDevAPI.swift in Sources */,
 				E3B100013 /* ThinkingLevelCatalog.swift in Sources */,
+				E3B100014 /* ModelGroup.swift in Sources */,
+				E5ATP002 /* AgentToolPreflight.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2609,6 +2619,7 @@
 				E5VMC0005 /* AIChatViewModel+Persistence.swift in Sources */,
 				E5VMC0006 /* AIChatViewModel+BackgroundTask.swift in Sources */,
 				E5VMC0007 /* AIChatViewModel+ConcurrentTools.swift in Sources */,
+				E5ATP001 /* AgentToolPreflight.swift in Sources */,
 				E5LD00001 /* ToolLoopDetector.swift in Sources */,
 				E53000002 /* AIChatView.swift in Sources */,
 				E5CAL0001 /* CookieAuditLogger.swift in Sources */,
@@ -2756,6 +2767,7 @@
 				E3B000004 /* AgentBackendRegistry.swift in Sources */,
 				E3B000005 /* AgentBackendConfigStore.swift in Sources */,
 				E3B000006 /* OpenClawBackendConfig.swift in Sources */,
+				E3B000018 /* OpenClawNativeProvider.swift in Sources */,
 				E3B000007 /* OpenClawBackend.swift in Sources */,
 				E3C000001 /* OpenClawBackendCredentialStore.swift in Sources */,
 				E3C000002 /* ExternalAgentBackendSettingsView.swift in Sources */,
@@ -3068,7 +3080,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "MinisApp-Bridging-Header.h";
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minis.app/Minis";
 			};
@@ -3097,7 +3109,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "MinisApp-Bridging-Header.h";
-				SWIFT_VERSION = 6.0;
+				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Minis.app/Minis";
 			};

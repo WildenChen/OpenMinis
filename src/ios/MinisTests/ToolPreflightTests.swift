@@ -30,7 +30,7 @@ final class ToolPreflightTests: XCTestCase {
     }
 
     private func validate(_ name: String, _ args: [String: Any]) -> String? {
-        AIChatViewModel.preflightValidateToolCall(name: name, args: args, tools: tools)
+        AgentToolPreflight.validateToolCall(name: name, args: args, tools: tools)
     }
 
     // MARK: - file_edit.new_string empty-string whitelist
