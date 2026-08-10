@@ -53,14 +53,18 @@ jobs:
 
       - name: Build native dependencies
         run: |
-          # FFmpeg 6.1.2 still contains historical `register` declarations.
-          # Current hosted Xcode Clang defaults to C17 where that is an error.
-          # Keep the repository source untouched and build this pinned upstream
-          # dependency in the GNU11 mode it was written for.
+          # FFmpeg's configure architecture name is `aarch64`, while Apple's
+          # compiler flag remains `-arch arm64`. Using `--arch=arm64` on an
+          # x86_64 hosted runner lets FFmpeg retain x86 sources and later asks
+          # arm64 clang to assemble x86 inline asm. Patch only the configure
+          # spelling in CI; keep the repository's third-party script untouched.
+          # FFmpeg 6.1.2 also contains historical `register` declarations, so
+          # build this pinned dependency in GNU11 mode with the warning disabled.
           python3 - <<'PY'
           from pathlib import Path
           p = Path('deps/build_ffmpeg.sh')
           s = p.read_text()
+          s = s.replace('--arch=arm64', '--arch=aarch64')
           s = s.replace(
               '-fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS',
               '-std=gnu11 -Wno-register -fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS'
@@ -77,9 +81,8 @@ jobs:
           PY
 
           # The upstream script normally downloads from ffmpeg.org. Hosted CI
-          # saw an otherwise healthy build fail on a connection reset near the
-          # end of that download, so pre-seed the same 6.1.2 source directory
-          # from FFmpeg's official GitHub tag with curl retries.
+          # saw a connection reset near the end of that download, so pre-seed
+          # the same 6.1.2 source directory from FFmpeg's official GitHub tag.
           if [ ! -d deps/ffmpeg-6.1.2 ]; then
             tmp="$(mktemp -d)"
             curl -fL \
