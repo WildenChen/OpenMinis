@@ -129,8 +129,12 @@ struct ExternalAgentBackendSettingsView: View {
                         Button("Save") {
                             let cleaned = credentialInputText.components(separatedBy: .whitespacesAndNewlines).joined()
                             guard !cleaned.isEmpty else { return }
-                            _ = OpenClawBackendCredentialStore.save(cleaned)
-                            credentialConfigured = OpenClawBackendCredentialStore.isConfigured
+                            guard OpenClawBackendCredentialStore.save(cleaned) else {
+                                errorMessage = String(localized: "Failed to save the Gateway credential to the iOS Keychain. Please try again.")
+                                showError = true
+                                return
+                            }
+                            credentialConfigured = true
                             credentialInputText = ""
                             showCredentialInput = false
                         }
