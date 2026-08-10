@@ -82,7 +82,7 @@ struct ExternalAgentBackendSettingsView: View {
                         Image(systemName: "bolt")
                     }
                 }
-                .onChange(of: active) { _, isOn in
+                .onChange(of: active) { isOn in
                     handleActiveChange(isOn)
                 }
             } footer: {

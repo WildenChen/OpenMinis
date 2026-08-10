@@ -483,6 +483,15 @@ enum DebugMethodRegistry {
             example: ["key": "OPENAI_API_KEY"]
         ),
         MethodSpec(
+            name: "debug.openclaw.credential",
+            description: "Set or query the OpenClaw Gateway bearer token through OpenClawBackendCredentialStore (iOS Keychain). Routes the write through the same store the settings UI uses. The secret is never returned.",
+            params: [
+                ParamSpec(name: "token", type: "string", required: false, default: nil, description: "Gateway bearer token to store. Omit to query configuration status only."),
+            ],
+            returns: "{ok?: bool, configured: bool}",
+            example: ["token": "ea29c4..."]
+        ),
+        MethodSpec(
             name: "debug.tap",
             description: "Dispatch a tap. Prefer 'identifier'/'label'/'text' for SwiftUI content — they resolve through the accessibility tree and call accessibilityActivate(), which SwiftUI wires to onTapGesture/Button (coordinate-based synthetic taps often miss SwiftUI hit-tests inside List/ScrollView).",
             params: [

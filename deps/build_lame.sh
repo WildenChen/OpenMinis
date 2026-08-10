@@ -23,6 +23,16 @@ LAME_BUILD_DIR="$SCRIPT_DIR/lame-build"
 
 IOS_DEPLOYMENT_TARGET="14.0"
 
+# Target SDK: `iphoneos` (device, default) or `iphonesimulator` (Simulator).
+# Selector via env so the same script serves both without changing default
+# device behavior.
+IOS_SDK_NAME="${IOS_SDK_NAME:-iphoneos}"
+if [ "$IOS_SDK_NAME" == "iphonesimulator" ]; then
+    MIN_VERSION_FLAG="-mios-simulator-version-min=$IOS_DEPLOYMENT_TARGET"
+else
+    MIN_VERSION_FLAG="-miphoneos-version-min=$IOS_DEPLOYMENT_TARGET"
+fi
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -65,12 +75,12 @@ fi
 # ============================================================================
 log_info "Configuring LAME for iOS arm64..."
 
-IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-CC="$(xcrun --sdk iphoneos -f clang)"
+IOS_SDK=$(xcrun --sdk "$IOS_SDK_NAME" --show-sdk-path)
+CC="$(xcrun --sdk "$IOS_SDK_NAME" -f clang)"
 
 export CC
-export CFLAGS="-arch arm64 -miphoneos-version-min=$IOS_DEPLOYMENT_TARGET -isysroot $IOS_SDK -fembed-bitcode -Oz -fPIC -Wno-implicit-function-declaration"
-export LDFLAGS="-arch arm64 -miphoneos-version-min=$IOS_DEPLOYMENT_TARGET -isysroot $IOS_SDK"
+export CFLAGS="-arch arm64 $MIN_VERSION_FLAG -isysroot $IOS_SDK -fembed-bitcode -Oz -fPIC -Wno-implicit-function-declaration"
+export LDFLAGS="-arch arm64 $MIN_VERSION_FLAG -isysroot $IOS_SDK"
 
 cd "$LAME_SRC_DIR"
 

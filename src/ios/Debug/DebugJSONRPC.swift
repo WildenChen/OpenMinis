@@ -289,6 +289,8 @@ final class DebugJSONRPC: @unchecked Sendable {
             return await handleEnvVarSet(params: params)
         case "debug.envvar.delete":
             return await handleEnvVarDelete(params: params)
+        case "debug.openclaw.credential":
+            return await handleOpenClawCredential(params: params)
         case "debug.tap":
             return try await handleTap(params: params)
         case "debug.inputText":
@@ -2687,6 +2689,19 @@ final class DebugJSONRPC: @unchecked Sendable {
             store.delete(id: target.id)
             return ["deleted": true, "id": target.id, "key": target.key]
         }
+    }
+
+    /// debug.openclaw.credential — DEBUG-only bootstrap for the OpenClaw Gateway
+    /// bearer token. Routes through `OpenClawBackendCredentialStore` so the
+    /// Keychain write uses the exact same code path as the settings UI. Only
+    /// existence is returned — the secret itself is never echoed back.
+    private func handleOpenClawCredential(params: [String: Any]) async -> [String: Any] {
+        if let token = params["token"] as? String, !token.isEmpty {
+            let cleaned = token.components(separatedBy: .whitespacesAndNewlines).joined()
+            let ok = OpenClawBackendCredentialStore.save(cleaned)
+            return ["ok": ok, "configured": OpenClawBackendCredentialStore.isConfigured]
+        }
+        return ["configured": OpenClawBackendCredentialStore.isConfigured]
     }
 
     // MARK: - Error Type
