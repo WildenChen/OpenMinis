@@ -90,19 +90,19 @@ struct ExternalAgentBackendSettingsView: View {
                     }
                 }
             } header: {
-                Text("Gateway Credential")
+                Text("Token")
             } footer: {
                 Text("The owner/operator bearer token stays in this iPhone's Keychain and is never synced or redisplayed.")
             }
 
             Section {
-                TextField(String(localized: "Agent ID"), text: $agentIDText)
+                TextField(String(localized: "Agent / Profile"), text: $agentIDText)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
-                TextField(String(localized: "Display Name"), text: $agentDisplayNameText)
+                TextField(String(localized: "Profile Display Name"), text: $agentDisplayNameText)
                     .textContentType(.name)
             } header: {
-                Text(nativeInstance == nil ? "Initial Agent" : "Add or Update Agent")
+                Text("Agent / Profile")
             } footer: {
                 Text("Each OpenClaw agent is stored as a normal model. For example, agent ID yujie can be shown as 語婕 in the model picker.")
             }

@@ -43,11 +43,16 @@ enum AgentBackendActiveState {
     /// not a real ProviderInstance — retained only for migration compatibility.
     static let syntheticProviderInstanceId = "__external_agent_backend__"
 
+    /// True when a native OpenClaw ProviderInstance already exists. Wired at
+    /// launch by `OpenClawNativeProvider.install()` so this file stays free of
+    /// app-only types and remains compilable by the unit-test target.
+    static var nativeOpenClawExists: () -> Bool = { false }
+
     /// Returns (backend provider, synthetic entry) for the legacy active backend,
     /// or nil when a native OpenClaw provider exists / nothing is configured /
     /// the adapter is not registered.
     static func resolved() -> (provider: AgentBackendProvider, entry: ModelEntry)? {
-        if ProviderConfigStore.shared.instances.contains(where: OpenClawNativeProvider.isInstance) {
+        if nativeOpenClawExists() {
             return nil
         }
         guard let config = AgentBackendConfigStore.loadActive() else { return nil }

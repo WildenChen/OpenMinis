@@ -125,11 +125,29 @@ struct OpenClawBackend: ExternalAgentBackend {
                 var toolAccum: [Int: (id: String, name: String, json: String)] = [:]
                 var sawAnyTool = false
                 var emittedTextStart = false
+                // Flushes every complete accumulated tool call in index order and
+                // ends the turn. Shared by the `finish_reason: "tool_calls"`
+                // branch and the `[DONE]` tail so a gateway that omits the final
+                // finish chunk never silently drops an in-flight tool call.
+                func flushToolCalls() {
+                    for (_, acc) in toolAccum.sorted(by: { $0.key < $1.key }) {
+                        guard !acc.id.isEmpty, !acc.name.isEmpty else { continue }
+                        continuation.yield(.toolCallComplete(
+                            id: sanitizeToolId(acc.id),
+                            name: Self.decodedToolName(acc.name),
+                            args: Self.parseArgs(acc.json),
+                            metadata: nil
+                        ))
+                    }
+                    continuation.yield(.done(stopReason: .toolUse))
+                }
                 do {
                     for try await line in lineStream {
                         guard let payload = Self.ssePayload(from: line) else { continue }
                         if payload == "[DONE]" {
-                            if !sawAnyTool {
+                            if sawAnyTool {
+                                flushToolCalls()
+                            } else {
                                 continuation.yield(.done(stopReason: .endTurn))
                             }
                             break
@@ -186,16 +204,7 @@ struct OpenClawBackend: ExternalAgentBackend {
                             switch finish {
                             case "tool_calls":
                                 sawAnyTool = true
-                                for (_, acc) in toolAccum.sorted(by: { $0.key < $1.key }) {
-                                    guard !acc.id.isEmpty, !acc.name.isEmpty else { continue }
-                                    continuation.yield(.toolCallComplete(
-                                        id: sanitizeToolId(acc.id),
-                                        name: Self.decodedToolName(acc.name),
-                                        args: Self.parseArgs(acc.json),
-                                        metadata: nil
-                                    ))
-                                }
-                                continuation.yield(.done(stopReason: .toolUse))
+                                flushToolCalls()
                             case "stop":
                                 continuation.yield(.done(stopReason: .endTurn))
                             case "length":
@@ -248,8 +257,12 @@ struct OpenClawBackend: ExternalAgentBackend {
     static let adapterSystemPrompt =
         "You are the agent brain running on OpenClaw. Tool names prefixed with \"minis_\" are "
         + "provided by the user's current iPhone (OpenMinis) and execute on-device; call them with "
-        + "valid JSON arguments and wait for their results in the following turn. Handle every other "
-        + "tool host-side as usual. You own identity, memory and context."
+        + "valid JSON arguments and wait for their results in the following turn. The supplied OpenMinis "
+        + "tool list is authoritative. It includes minis_shell_execute for iPhone-native offloads such "
+        + "as apple-location, apple-calendar, apple-photos, apple-healthkit and apple-homekit; invoke "
+        + "those commands through minis_shell_execute, for example `apple-location current --compact -q`. "
+        + "Do not invent a direct tool for an apple-* command. Handle every other tool host-side as usual. You own "
+        + "identity, memory and context."
 
     /// Builds the complete wire message array for one turn: the fixed adapter
     /// policy followed by the current turn's delta only. Shared by `stream()`

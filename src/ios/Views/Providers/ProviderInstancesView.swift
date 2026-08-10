@@ -14,22 +14,9 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            // OpenClaw is backed by a real ProviderInstance/ModelEntry but uses
-            // a compatibility marker internally. Present it as its own provider
-            // section rather than leaking the internal `.openAI` storage detail.
-            Section("OpenClaw") {
-                NavigationLink {
-                    ExternalAgentBackendSettingsView()
-                } label: {
-                    OpenClawProviderRow()
-                }
-            } footer: {
-                Text("OpenClaw agents participate in the normal model picker and session bindings. OpenMinis continues to execute iPhone tools on-device.")
-            }
-
-            // [T-mimo-shadow-voice] EVERY normal instance appears under its
-            // providerType section. Native OpenClaw instances are excluded here
-            // because they already have the dedicated peer-level section above.
+            // [T-mimo-shadow-voice] Every normal instance appears under its
+            // providerType section. OpenClaw has its own visible provider name
+            // while retaining the existing internal OpenAI compatibility slot.
             ForEach(ProviderType.allCases, id: \.self) { type in
                 let instancesOfType = store.instances.filter {
                     $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
@@ -45,6 +32,18 @@ struct ProviderInstancesView: View {
                         }
                         .onMove { source, destination in
                             moveInstances(in: type, from: source, to: destination)
+                        }
+                    }
+                }
+            }
+            let openClawInstances = store.instances.filter(OpenClawNativeProvider.isInstance)
+            if !openClawInstances.isEmpty {
+                Section("OpenClaw") {
+                    ForEach(openClawInstances) { _ in
+                        NavigationLink {
+                            ExternalAgentBackendSettingsView()
+                        } label: {
+                            OpenClawProviderRow()
                         }
                     }
                 }

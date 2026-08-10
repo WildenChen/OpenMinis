@@ -1,0 +1,158 @@
+name: SoulNest MVP IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Prepare build customization
+        run: |
+          cp src/ios/Configs/ProviderCustomization.xcconfig.example \
+             src/ios/Configs/ProviderCustomization.xcconfig
+
+      - name: Install native build prerequisites
+        run: |
+          # Homebrew LLVM 22 no longer bundles LLD (it moved to a separate
+          # formula). iSH's ARM64 VDSO build passes -fuse-ld=lld, so install
+          # lld explicitly or the native dependency build fails.
+          brew install ninja llvm lld libarchive pkg-config meson || true
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix libarchive)/bin" >> "$GITHUB_PATH"
+
+      - name: Cache native iOS dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps/lame-build
+            deps/frameworks
+            deps/libs
+            deps/include
+            deps/resources
+          key: soulnest-ios-native-${{ runner.os }}-${{ hashFiles('deps/build_lame.sh', 'deps/build_ffmpeg.sh', 'deps/build_ish.sh', 'deps/prepare_alpine_rootfs.sh', '.gitmodules') }}
+
+      - name: Build native dependencies
+        run: |
+          # FFmpeg's configure architecture name is `aarch64`, while Apple's
+          # compiler flag remains `-arch arm64`. Using `--arch=arm64` on an
+          # x86_64 hosted runner lets FFmpeg retain x86 sources and later asks
+          # arm64 clang to assemble x86 inline asm. Patch only the configure
+          # spelling in CI; keep the repository's third-party script untouched.
+          # FFmpeg 6.1.2 also contains historical `register` declarations, so
+          # build this pinned dependency in GNU11 mode with the warning disabled.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('deps/build_ffmpeg.sh')
+          s = p.read_text()
+          s = s.replace('--arch=arm64', '--arch=aarch64')
+          s = s.replace(
+              '-fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS',
+              '-std=gnu11 -Wno-register -fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS'
+          )
+          s = s.replace(
+              'FFTOOLS_CFLAGS="$FFTOOLS_CFLAGS -DCONFIG_FFMPEG_MAIN=1 -Oz -fPIC"',
+              'FFTOOLS_CFLAGS="$FFTOOLS_CFLAGS -std=gnu11 -Wno-register -DCONFIG_FFMPEG_MAIN=1 -Oz -fPIC"'
+          )
+          s = s.replace(
+              'REDIRECT_CFLAGS="$REDIRECT_CFLAGS -I$FFMPEG_DIR -I$INSTALL_DIR/include -Oz -fPIC"',
+              'REDIRECT_CFLAGS="$REDIRECT_CFLAGS -std=gnu11 -Wno-register -I$FFMPEG_DIR -I$INSTALL_DIR/include -Oz -fPIC"'
+          )
+          p.write_text(s)
+          PY
+
+          # The upstream script normally downloads from ffmpeg.org. Hosted CI
+          # saw a connection reset near the end of that download, so pre-seed
+          # the same 6.1.2 source directory from FFmpeg's official GitHub tag.
+          if [ ! -d deps/ffmpeg-6.1.2 ]; then
+            tmp="$(mktemp -d)"
+            curl -fL \
+              --retry 6 --retry-delay 2 --retry-all-errors \
+              https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.2.tar.gz \
+              -o "$tmp/ffmpeg.tar.gz"
+            tar -xzf "$tmp/ffmpeg.tar.gz" -C "$tmp"
+            mv "$tmp/FFmpeg-n6.1.2" deps/ffmpeg-6.1.2
+            rm -rf "$tmp"
+          fi
+
+          ./deps/build_lame.sh
+          ./deps/build_ffmpeg.sh
+          ./deps/build_ish.sh
+          ./deps/prepare_alpine_rootfs.sh
+
+      - name: Archive unsigned device build
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild \
+            -project src/ios/Minis.xcodeproj \
+            -scheme Minis \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/SoulNest.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM='' \
+            archive | tee build/xcodebuild.log
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="$PWD/build/SoulNest.xcarchive/Products/Applications/Minis.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app not found: $APP_PATH" >&2
+            find build -maxdepth 6 -name '*.app' -print || true
+            exit 1
+          fi
+
+          # Untouched unsigned archive payload: useful for build inspection.
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && /usr/bin/zip -qry SoulNest-unsigned.ipa Payload)
+
+          # Functional test package for the user's current acceptance path:
+          # LiveContainer does not normally host guest app extensions, so strip
+          # PlugIns from this copy and give the guest a distinct SoulNest identity.
+          # This is packaging-only; source-level bundle/app-group branding remains
+          # tracked separately under #19.
+          rm -rf build/LivePayload
+          mkdir -p build/LivePayload
+          cp -R "$APP_PATH" build/LivePayload/SoulNest.app
+          rm -rf build/LivePayload/SoulNest.app/PlugIns
+          INFO=build/LivePayload/SoulNest.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.wildenstudio.soulnest' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName SoulNest' "$INFO" || true
+          /usr/libexec/PlistBuddy -c 'Delete :CFBundleDisplayName' "$INFO" >/dev/null 2>&1 || true
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleDisplayName string SoulNest' "$INFO"
+          mv build/LivePayload build/Payload-LiveContainer
+          (cd build && mv Payload Payload-original && mv Payload-LiveContainer Payload && /usr/bin/zip -qry SoulNest-LiveContainer.ipa Payload && mv Payload Payload-LiveContainer && mv Payload-original Payload)
+
+          /usr/bin/stat -f 'Unsigned IPA bytes: %z' build/SoulNest-unsigned.ipa
+          /usr/bin/stat -f 'LiveContainer IPA bytes: %z' build/SoulNest-LiveContainer.ipa
+
+      - name: Upload IPA and build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoulNest-ipa
+          path: |
+            build/SoulNest-LiveContainer.ipa
+            build/SoulNest-unsigned.ipa
+            build/xcodebuild.log
+          if-no-files-found: error
+          retention-days: 7
