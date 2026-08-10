@@ -80,17 +80,39 @@ jobs:
             find build -maxdepth 6 -name '*.app' -print || true
             exit 1
           fi
+
+          # Untouched unsigned archive payload: useful for build inspection.
           rm -rf build/Payload
           mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
           (cd build && /usr/bin/zip -qry SoulNest-unsigned.ipa Payload)
-          /usr/bin/stat -f 'IPA bytes: %z' build/SoulNest-unsigned.ipa
+
+          # Functional test package for the user's current acceptance path:
+          # LiveContainer does not normally host guest app extensions, so strip
+          # PlugIns from this copy and give the guest a distinct SoulNest identity.
+          # This is packaging-only; source-level bundle/app-group branding remains
+          # tracked separately under #19.
+          rm -rf build/LivePayload
+          mkdir -p build/LivePayload
+          cp -R "$APP_PATH" build/LivePayload/SoulNest.app
+          rm -rf build/LivePayload/SoulNest.app/PlugIns
+          INFO=build/LivePayload/SoulNest.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.wildenstudio.soulnest' "$INFO"
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName SoulNest' "$INFO" || true
+          /usr/libexec/PlistBuddy -c 'Delete :CFBundleDisplayName' "$INFO" >/dev/null 2>&1 || true
+          /usr/libexec/PlistBuddy -c 'Add :CFBundleDisplayName string SoulNest' "$INFO"
+          mv build/LivePayload build/Payload-LiveContainer
+          (cd build && mv Payload Payload-original && mv Payload-LiveContainer Payload && /usr/bin/zip -qry SoulNest-LiveContainer.ipa Payload && mv Payload Payload-LiveContainer && mv Payload-original Payload)
+
+          /usr/bin/stat -f 'Unsigned IPA bytes: %z' build/SoulNest-unsigned.ipa
+          /usr/bin/stat -f 'LiveContainer IPA bytes: %z' build/SoulNest-LiveContainer.ipa
 
       - name: Upload IPA and build log
         uses: actions/upload-artifact@v4
         with:
-          name: SoulNest-unsigned-ipa
+          name: SoulNest-ipa
           path: |
+            build/SoulNest-LiveContainer.ipa
             build/SoulNest-unsigned.ipa
             build/xcodebuild.log
           if-no-files-found: error
