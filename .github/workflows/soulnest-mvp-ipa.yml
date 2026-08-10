@@ -1,0 +1,94 @@
+name: SoulNest MVP IPA
+
+on:
+  push:
+    branches:
+      - soulnest-mvp-to-ipa
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Prepare build customization
+        run: |
+          cp src/ios/Configs/ProviderCustomization.xcconfig.example \
+             src/ios/Configs/ProviderCustomization.xcconfig
+
+      - name: Install native build prerequisites
+        run: |
+          brew install ninja llvm libarchive pkg-config || true
+          python3 -m pip install --user meson
+          echo "$(python3 -m site --user-base)/bin" >> "$GITHUB_PATH"
+
+      - name: Cache native iOS dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps/lame-build
+            deps/frameworks
+            deps/libs
+            deps/include
+            deps/resources
+          key: soulnest-ios-native-${{ runner.os }}-${{ hashFiles('deps/build_lame.sh', 'deps/build_ffmpeg.sh', 'deps/build_ish.sh', 'deps/prepare_alpine_rootfs.sh', '.gitmodules') }}
+
+      - name: Build native dependencies
+        run: |
+          ./deps/build_lame.sh
+          ./deps/build_ffmpeg.sh
+          ./deps/build_ish.sh
+          ./deps/prepare_alpine_rootfs.sh
+
+      - name: Archive unsigned device build
+        run: |
+          mkdir -p build
+          set -o pipefail
+          xcodebuild \
+            -project src/ios/Minis.xcodeproj \
+            -scheme Minis \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$PWD/build/SoulNest.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            DEVELOPMENT_TEAM='' \
+            archive | tee build/xcodebuild.log
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="$PWD/build/SoulNest.xcarchive/Products/Applications/Minis.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Expected app not found: $APP_PATH" >&2
+            find build -maxdepth 6 -name '*.app' -print || true
+            exit 1
+          fi
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          (cd build && /usr/bin/zip -qry SoulNest-unsigned.ipa Payload)
+          /usr/bin/stat -f 'IPA bytes: %z' build/SoulNest-unsigned.ipa
+
+      - name: Upload IPA and build log
+        uses: actions/upload-artifact@v4
+        with:
+          name: SoulNest-unsigned-ipa
+          path: |
+            build/SoulNest-unsigned.ipa
+            build/xcodebuild.log
+          if-no-files-found: error
+          retention-days: 7
