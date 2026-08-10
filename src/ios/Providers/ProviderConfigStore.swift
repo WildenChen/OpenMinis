@@ -889,6 +889,7 @@ final class ProviderConfigStore: ObservableObject {
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-email")
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-gcp-project")
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "manual-oauth-token")
+        AgentBackendProviderSettings.remove(instanceID: instanceId)
         save()
         // [T-icloud-provider-sync-consistency] Explicit V3 delete tombstones —
         // emitV3MarkDirty no longer diff-infers deletions, so the instance, its

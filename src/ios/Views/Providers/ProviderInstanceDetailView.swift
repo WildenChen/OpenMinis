@@ -20,6 +20,7 @@ struct ProviderInstanceDetailView: View {
     @State private var oauthRefreshTrigger = false
     @State private var editingCustomBaseURL = ""
     @State private var editingCustomUserAgent = ""
+    @State private var editingAgentTargetID = ""
     @State private var showManualTokenInput = false
     @State private var manualTokenInputText = ""
     @State private var editingModelEntry: ModelEntry?
@@ -154,6 +155,19 @@ struct ProviderInstanceDetailView: View {
 
             // MARK: Custom Base URL
             customBaseURLSection(instance)
+
+            if FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) {
+                Section("Agent / Profile") {
+                    TextField("Agent / Profile ID", text: $editingAgentTargetID)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onAppear { editingAgentTargetID = FirstClassAgentBackendProvider.targetID(for: instance) ?? "" }
+                        .onSubmit { saveAgentTargetID(instance) }
+                        .onChange(of: editingAgentTargetID) { _ in saveAgentTargetID(instance) }
+                } footer: {
+                    Text("Changing this value applies to new turns while preserving the OpenMinis chat session mapping.")
+                }
+            }
 
             // [T-mimo-shadow-voice] These LLM-config fields are gated by their own
             // providerType/capability checks (supportsCustomUserAgent, API-format
@@ -1026,6 +1040,13 @@ struct ProviderInstanceDetailView: View {
         case .hermes: return "Token / Credential"
         case .unsupported: return ""
         }
+    }
+
+    private func saveAgentTargetID(_ instance: ProviderInstance) {
+        guard FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) else { return }
+        let trimmed = editingAgentTargetID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != (FirstClassAgentBackendProvider.targetID(for: instance) ?? "") else { return }
+        AgentBackendProviderSettings.setTargetID(trimmed, for: instance.id)
     }
 
     private func saveLabel(_ instance: ProviderInstance) {
