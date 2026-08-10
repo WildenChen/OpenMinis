@@ -65,6 +65,21 @@ struct ProviderInstancesView: View {
                 }
             }
 
+            Section {
+                NavigationLink {
+                    ExternalAgentBackendSettingsView()
+                } label: {
+                    ExternalAgentBackendRow(backendID: "openclaw", name: "OpenClaw")
+                }
+                // Hermes follows the same backend contract but is not selectable
+                // as an active backend until its adapter lands (#6).
+                ExternalAgentBackendDisabledRow(name: "Hermes", detail: String(localized: "Coming in a later update"))
+            } header: {
+                Text("External Agent Backend")
+            } footer: {
+                Text("An external agent backend becomes the only agent brain when activated. OpenMinis still executes device tools.")
+            }
+
             if store.instances.isEmpty {
                 Section {
                     VStack(spacing: 8) {
@@ -336,5 +351,70 @@ private struct ShadowVoiceRow: View {
         if asr > 0 { parts.append(String(localized: "\(asr) speech-to-text", comment: "ASR model count")) }
         if tts > 0 { parts.append(String(localized: "\(tts) text-to-speech", comment: "TTS model count")) }
         return parts.joined(separator: " · ")
+    }
+}
+
+// MARK: - External Agent Backend Rows
+
+/// Row for a configurable external agent backend. Shows active + credential
+/// status so the list stays informative without revealing any stored secret.
+private struct ExternalAgentBackendRow: View {
+    let backendID: String
+    let name: String
+
+    private var isActive: Bool {
+        AgentBackendConfigStore.loadActive()?.backendID == backendID
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(isActive ? Color.green : Color(UIColor.quaternaryLabel))
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.body.weight(.medium))
+                HStack(spacing: 6) {
+                    Text(isActive ? String(localized: "Active") : String(localized: "Inactive"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("·")
+                        .font(.caption)
+                        .foregroundStyle(.quaternary)
+                    Text(OpenClawBackendCredentialStore.isConfigured
+                         ? String(localized: "Credential configured")
+                         : String(localized: "No credential"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+/// Muted, non-interactive row for a backend that is not yet selectable.
+/// Deliberately never persisted as an active configuration.
+private struct ExternalAgentBackendDisabledRow: View {
+    let name: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(Color(UIColor.quaternaryLabel))
+                .frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 }

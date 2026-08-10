@@ -123,6 +123,8 @@
 		E3B000005 /* AgentBackendConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000015 /* AgentBackendConfigStore.swift */; };
 		E3B000006 /* OpenClawBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000016 /* OpenClawBackendConfig.swift */; };
 		E3B000007 /* OpenClawBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000017 /* OpenClawBackend.swift */; };
+		E3C000001 /* OpenClawBackendCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000011 /* OpenClawBackendCredentialStore.swift */; };
+		E3C000002 /* ExternalAgentBackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000012 /* ExternalAgentBackendSettingsView.swift */; };
 		E3B100001 /* LLMTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52000011 /* LLMTypes.swift */; };
 		E3B100002 /* AgentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59000011 /* AgentProvider.swift */; };
 		E3B100003 /* ModelEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D00013 /* ModelEntry.swift */; };
@@ -134,6 +136,7 @@
 		E3B100009 /* AgentBackendConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000015 /* AgentBackendConfigStore.swift */; };
 		E3B100010 /* OpenClawBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000016 /* OpenClawBackendConfig.swift */; };
 		E3B100011 /* OpenClawBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000017 /* OpenClawBackend.swift */; };
+		E3C100001 /* OpenClawBackendCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000011 /* OpenClawBackendCredentialStore.swift */; };
 		E3B100012 /* ModelsDevAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D00018 /* ModelsDevAPI.swift */; };
 		E3B100013 /* ThinkingLevelCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5TLC0002 /* ThinkingLevelCatalog.swift */; };
 		E5A000001 /* default_mount in Resources */ = {isa = PBXBuildFile; fileRef = E5A000011 /* default_mount */; };
@@ -735,6 +738,8 @@
 		E3B000015 /* AgentBackendConfigStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentBackendConfigStore.swift; sourceTree = "<group>"; };
 		E3B000016 /* OpenClawBackendConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackendConfig.swift; sourceTree = "<group>"; };
 		E3B000017 /* OpenClawBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackend.swift; sourceTree = "<group>"; };
+		E3C000011 /* OpenClawBackendCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackendCredentialStore.swift; sourceTree = "<group>"; };
+		E3C000012 /* ExternalAgentBackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalAgentBackendSettingsView.swift; sourceTree = "<group>"; };
 		E5A000011 /* default_mount */ = {isa = PBXFileReference; lastKnownFileType = folder; path = default_mount; sourceTree = "<group>"; };
 		E5AT00011 /* AudioTogglePlaybackIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTogglePlaybackIntent.swift; sourceTree = "<group>"; };
 		E5BADGE011 /* SessionBadgeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBadgeStore.swift; sourceTree = "<group>"; };
@@ -1402,6 +1407,7 @@
 				E3B000015 /* AgentBackendConfigStore.swift */,
 				E3B000016 /* OpenClawBackendConfig.swift */,
 				E3B000017 /* OpenClawBackend.swift */,
+				E3C000011 /* OpenClawBackendCredentialStore.swift */,
 			);
 			path = AgentBackend;
 			sourceTree = "<group>";
@@ -2109,6 +2115,7 @@
 				E5D00036 /* OnboardingModelSelectionView.swift */,
 				E5D00031 /* ProviderInstanceDetailView.swift */,
 				E5D00030 /* ProviderInstancesView.swift */,
+				E3C000012 /* ExternalAgentBackendSettingsView.swift */,
 				E5SVP0031 /* ShadowVoiceProviderDetailView.swift */,
 				E5D00035 /* SessionModelPicker.swift */,
 				E5UMP0011 /* UnifiedModelPicker.swift */,
@@ -2508,6 +2515,7 @@
 				E3B100009 /* AgentBackendConfigStore.swift in Sources */,
 				E3B100010 /* OpenClawBackendConfig.swift in Sources */,
 				E3B100011 /* OpenClawBackend.swift in Sources */,
+				E3C100001 /* OpenClawBackendCredentialStore.swift in Sources */,
 				E3B100012 /* ModelsDevAPI.swift in Sources */,
 				E3B100013 /* ThinkingLevelCatalog.swift in Sources */,
 			);
@@ -2749,6 +2757,8 @@
 				E3B000005 /* AgentBackendConfigStore.swift in Sources */,
 				E3B000006 /* OpenClawBackendConfig.swift in Sources */,
 				E3B000007 /* OpenClawBackend.swift in Sources */,
+				E3C000001 /* OpenClawBackendCredentialStore.swift in Sources */,
+				E3C000002 /* ExternalAgentBackendSettingsView.swift in Sources */,
 				E5GWF0003 /* GeminiWireFormat.swift in Sources */,
 				E5C000001 /* OpenAIProvider.swift in Sources */,
 				E5C000002 /* OpenAIAgentProvider.swift in Sources */,
