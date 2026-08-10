@@ -53,6 +53,28 @@ jobs:
 
       - name: Build native dependencies
         run: |
+          # FFmpeg 6.1.2 still contains historical `register` declarations.
+          # Current hosted Xcode Clang defaults to C17 where that is an error.
+          # Keep the repository source untouched and build this pinned upstream
+          # dependency in the GNU11 mode it was written for.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('deps/build_ffmpeg.sh')
+          s = p.read_text()
+          s = s.replace(
+              '-fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS',
+              '-std=gnu11 -Wno-register -fembed-bitcode -DCONFIG_FFMPEG_MAIN=1 $LAME_CFLAGS'
+          )
+          s = s.replace(
+              'FFTOOLS_CFLAGS="$FFTOOLS_CFLAGS -DCONFIG_FFMPEG_MAIN=1 -Oz -fPIC"',
+              'FFTOOLS_CFLAGS="$FFTOOLS_CFLAGS -std=gnu11 -Wno-register -DCONFIG_FFMPEG_MAIN=1 -Oz -fPIC"'
+          )
+          s = s.replace(
+              'REDIRECT_CFLAGS="$REDIRECT_CFLAGS -I$FFMPEG_DIR -I$INSTALL_DIR/include -Oz -fPIC"',
+              'REDIRECT_CFLAGS="$REDIRECT_CFLAGS -std=gnu11 -Wno-register -I$FFMPEG_DIR -I$INSTALL_DIR/include -Oz -fPIC"'
+          )
+          p.write_text(s)
+          PY
           ./deps/build_lame.sh
           ./deps/build_ffmpeg.sh
           ./deps/build_ish.sh
