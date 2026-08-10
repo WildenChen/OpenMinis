@@ -665,7 +665,6 @@ final class ProviderConfigStore: ObservableObject {
             ProviderKeychainHelper.saveAPIKey(token, instanceId: legacy.id)
             OpenClawBackendCredentialStore.delete()
         }
-        AgentBackendConfigStore.setActive(nil)
         logger.info("Migrated legacy OpenClaw provider to ProviderType.openClaw")
     }
 

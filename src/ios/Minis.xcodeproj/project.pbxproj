@@ -119,12 +119,9 @@
 		E3B000001 /* AgentBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000011 /* AgentBackendConfig.swift */; };
 		E3B000002 /* AgentBackendProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000012 /* AgentBackendProtocol.swift */; };
 		E3B000003 /* AgentBackendProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000013 /* AgentBackendProvider.swift */; };
-		E3B000004 /* AgentBackendRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000014 /* AgentBackendRegistry.swift */; };
-		E3B000005 /* AgentBackendConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000015 /* AgentBackendConfigStore.swift */; };
 		E3B000006 /* OpenClawBackendConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000016 /* OpenClawBackendConfig.swift */; };
 		E3B000007 /* OpenClawBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3B000017 /* OpenClawBackend.swift */; };
 		E3C000001 /* OpenClawBackendCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000011 /* OpenClawBackendCredentialStore.swift */; };
-		E3C000002 /* ExternalAgentBackendSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C000012 /* ExternalAgentBackendSettingsView.swift */; };
 		E3B100001 /* LLMTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = E52000011 /* LLMTypes.swift */; };
 		E3B100002 /* AgentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E59000011 /* AgentProvider.swift */; };
 		E3B100003 /* ModelEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5D00013 /* ModelEntry.swift */; };
@@ -748,7 +745,6 @@
 		E3D000011 /* FirstClassAgentBackendProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstClassAgentBackendProvider.swift; sourceTree = "<group>"; };
 		E3D000012 /* HermesBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesBackend.swift; sourceTree = "<group>"; };
 		E3C000011 /* OpenClawBackendCredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenClawBackendCredentialStore.swift; sourceTree = "<group>"; };
-		E3C000012 /* ExternalAgentBackendSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExternalAgentBackendSettingsView.swift; sourceTree = "<group>"; };
 		E5A000011 /* default_mount */ = {isa = PBXFileReference; lastKnownFileType = folder; path = default_mount; sourceTree = "<group>"; };
 		E5AT00011 /* AudioTogglePlaybackIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTogglePlaybackIntent.swift; sourceTree = "<group>"; };
 		E5BADGE011 /* SessionBadgeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionBadgeStore.swift; sourceTree = "<group>"; };
@@ -2770,15 +2766,12 @@
 				E3B000001 /* AgentBackendConfig.swift in Sources */,
 				E3B000002 /* AgentBackendProtocol.swift in Sources */,
 				E3B000003 /* AgentBackendProvider.swift in Sources */,
-				E3B000004 /* AgentBackendRegistry.swift in Sources */,
-				E3B000005 /* AgentBackendConfigStore.swift in Sources */,
 				E3B000006 /* OpenClawBackendConfig.swift in Sources */,
 				E3B000018 /* OpenClawNativeProvider.swift in Sources */,
 				E3D000001 /* FirstClassAgentBackendProvider.swift in Sources */,
 				E3D000002 /* HermesBackend.swift in Sources */,
 				E3B000007 /* OpenClawBackend.swift in Sources */,
 				E3C000001 /* OpenClawBackendCredentialStore.swift in Sources */,
-				E3C000002 /* ExternalAgentBackendSettingsView.swift in Sources */,
 				E5GWF0003 /* GeminiWireFormat.swift in Sources */,
 				E5C000001 /* OpenAIProvider.swift in Sources */,
 				E5C000002 /* OpenAIAgentProvider.swift in Sources */,

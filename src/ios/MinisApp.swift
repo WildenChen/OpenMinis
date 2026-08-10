@@ -143,9 +143,6 @@ struct MinisApp: App {
         BiometricAuth.prewarm()
         // Clean up Live Activities left over from a previous app session (e.g. app was killed)
         AgentLiveActivityManager.shared.cleanupStaleActivities(source: "MinisApp.init")
-        // Register external agent backend adapters (OpenClaw) so the registry
-        // can resolve a configured backend into a chat-loop provider.
-        AgentBackendRegistry.registerOpenClaw()
         // Start screen-awake controller — it will observe running tasks
         // + the user's opt-in flag and toggle the idle timer accordingly.
         Task { @MainActor in KeepScreenAwakeController.shared.start() }

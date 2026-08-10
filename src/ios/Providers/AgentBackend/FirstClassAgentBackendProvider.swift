@@ -75,7 +75,7 @@ struct OpenClawFirstClassProvider: SessionAwareAgentProvider {
     ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
         guard let endpoint = instance.effectiveCustomBaseURL.flatMap(URL.init(string:)),
               let token = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id), !token.isEmpty else {
-            throw OpenClawNativeProviderError.missingCredential
+            throw OpenClawFirstClassProviderError.missingCredential
         }
         let backend = OpenClawBackend(config: OpenClawBackendConfig(
             baseURL: endpoint,
@@ -86,6 +86,14 @@ struct OpenClawFirstClassProvider: SessionAwareAgentProvider {
             session: AgentBackendSession(openMinisSessionID: sessionID), messages: messages,
             systemPrompt: systemPrompt, tools: tools, maxTokens: maxTokens, thinkingLevel: thinkingLevel
         )
-        return OpenAIAgentProvider.reliableOpenClawStream(backend: backend, request: request)
+        return OpenClawStreamReliability.stream(backend: backend, request: request)
+    }
+}
+
+enum OpenClawFirstClassProviderError: LocalizedError {
+    case missingCredential
+
+    var errorDescription: String? {
+        String(localized: "OpenClaw Gateway credential is not configured on this device. Open Providers → OpenClaw and enter the Gateway credential.")
     }
 }

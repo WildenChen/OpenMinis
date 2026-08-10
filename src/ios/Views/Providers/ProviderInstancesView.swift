@@ -181,12 +181,7 @@ struct ProviderInstancesView: View {
     // through to SessionModelPicker.
     private func moveInstances(in type: ProviderType, from source: IndexSet, to destination: Int) {
         let all = store.instances
-        // Match the section's exact filter, including the internal OpenClaw
-        // compatibility marker, so section-relative indices never address an
-        // OpenClaw row that is rendered separately above.
-        let isSectionMember: (ProviderInstance) -> Bool = {
-            $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
-        }
+        let isSectionMember: (ProviderInstance) -> Bool = { $0.providerType == type }
         let sectionIds = all.filter(isSectionMember).map(\.id)
         var reorderedSectionIds = sectionIds
         reorderedSectionIds.move(fromOffsets: source, toOffset: destination)
@@ -331,55 +326,5 @@ private struct ShadowVoiceRow: View {
         if asr > 0 { parts.append(String(localized: "\(asr) speech-to-text", comment: "ASR model count")) }
         if tts > 0 { parts.append(String(localized: "\(tts) text-to-speech", comment: "TTS model count")) }
         return parts.joined(separator: " · ")
-    }
-}
-
-// MARK: - OpenClaw Provider Row
-
-/// Top-level OpenClaw provider status. The persisted ProviderInstance is a
-/// normal OpenMinis provider; the real Gateway credential stays in its dedicated
-/// device-local Keychain store and is intentionally not rendered.
-private struct OpenClawProviderRow: View {
-    @ObservedObject private var store = ProviderConfigStore.shared
-
-    private var instance: ProviderInstance? {
-        store.instances.first(where: OpenClawNativeProvider.isInstance)
-    }
-
-    private var agentCount: Int {
-        guard let instance else { return 0 }
-        return store.visibleEntries(for: instance.id).count
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(instance?.isEnabled == true && OpenClawBackendCredentialStore.isConfigured
-                      ? Color.green : Color(UIColor.quaternaryLabel))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("OpenClaw")
-                    .font(.body.weight(.medium))
-                if instance == nil {
-                    Text("Add Provider")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    let credential = OpenClawBackendCredentialStore.isConfigured
-                        ? String(localized: "Credential configured")
-                        : String(localized: "Credential required on this device")
-                    Text("\(agentCount) agent(s) · \(credential)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if let instance, !instance.isEnabled {
-                Text("Disabled")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 2)
     }
 }

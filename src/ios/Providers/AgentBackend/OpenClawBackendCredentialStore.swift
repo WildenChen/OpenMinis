@@ -78,12 +78,9 @@ struct OpenClawKeychainCredentialStorage: OpenClawCredentialStorage {
     }
 }
 
-/// App-facing access to the OpenClaw Gateway credential. Keeps the Keychain
-/// implementation behind an injectable boundary so the chat-loop path never
-/// depends on a concrete storage mechanism and unit tests run deterministically.
-///
-/// The stored value is only ever read on demand by the OpenClaw adapter;
-/// nothing here writes it to UserDefaults and nothing logs its contents.
+/// Legacy credential storage kept only for migration from the former separate
+/// OpenClaw settings screen. First-class provider instances use
+/// `ProviderKeychainHelper` instead.
 enum OpenClawBackendCredentialStore {
     /// Tests swap this for an in-memory implementation. App code uses the
     /// Keychain-backed default. Test-only mutation happens serially in
