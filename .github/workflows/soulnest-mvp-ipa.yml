@@ -36,8 +36,12 @@ jobs:
 
       - name: Install native build prerequisites
         run: |
-          brew install ninja llvm libarchive pkg-config meson || true
+          # Homebrew LLVM 22 no longer bundles LLD (it moved to a separate
+          # formula). iSH's ARM64 VDSO build passes -fuse-ld=lld, so install
+          # lld explicitly or the native dependency build fails.
+          brew install ninja llvm lld libarchive pkg-config meson || true
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix lld)/bin" >> "$GITHUB_PATH"
           echo "$(brew --prefix libarchive)/bin" >> "$GITHUB_PATH"
 
       - name: Cache native iOS dependencies
