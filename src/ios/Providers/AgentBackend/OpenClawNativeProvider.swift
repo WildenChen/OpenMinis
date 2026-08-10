@@ -116,7 +116,7 @@ extension OpenAIAgentProvider: SessionAwareAgentProvider {
     /// The same event stream also drives the Avatar presentation layer. This is
     /// intentionally one-way: Avatar state/subtitles observe agent lifecycle but
     /// never influence session routing, memory or tool ownership.
-    private static func reliableOpenClawStream(
+    static func reliableOpenClawStream(
         backend: OpenClawBackend,
         request: AgentBackendRequest
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {

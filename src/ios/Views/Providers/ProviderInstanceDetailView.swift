@@ -493,6 +493,8 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return "https://api.openai.com/v1"
         case .xAI: return "https://api.x.ai/v1"
         case .kimiCode: return "https://api.kimi.com/coding"
+        case .openClaw: return "http://127.0.0.1:18789"
+        case .hermes: return "http://127.0.0.1:8080"
         case .unsupported: return "—"
         }
     }
@@ -860,6 +862,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return false // API key only
         case .xAI: return XAIOAuthManager.shared.isAuthenticated(instanceId: instance.id)
         case .kimiCode: return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
+        case .openClaw, .hermes: return false
         case .unsupported: return false // synced from newer build
         }
     }
@@ -921,6 +924,8 @@ struct ProviderInstanceDetailView: View {
         case .kimiCode:
             return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
                 ? String(localized: "Authenticated") : String(localized: "Not authenticated")
+        case .openClaw, .hermes:
+            return String(localized: "Not applicable")
         case .unsupported:
             return String(localized: "Unsupported in this app version")
         }
@@ -936,6 +941,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return String(localized: "Sign In")
         case .xAI: return String(localized: "Sign in with xAI")
         case .kimiCode: return String(localized: "Sign in with Kimi Code")
+        case .openClaw, .hermes: return String(localized: "Configure Credential")
         case .unsupported: return String(localized: "Sign In")
         }
     }
@@ -951,6 +957,7 @@ struct ProviderInstanceDetailView: View {
             case .openAIResponses: break
             case .xAI: try await XAIOAuthManager.shared.login(instanceId: instance.id)
             case .kimiCode: break // device-code flow runs in KimiDeviceLoginSheet
+            case .openClaw, .hermes: break
             case .unsupported: break
             }
         } catch {
@@ -970,6 +977,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: break // API key only
         case .xAI: XAIOAuthManager.shared.logout(instanceId: instance.id)
         case .kimiCode: KimiOAuthManager.shared.logout(instanceId: instance.id)
+        case .openClaw, .hermes: break
         case .unsupported: break
         }
     }
@@ -993,6 +1001,8 @@ struct ProviderInstanceDetailView: View {
             token = try? await XAIOAuthManager.shared.validAccessToken(instanceId: instance.id)
         case .kimiCode:
             token = try? await KimiOAuthManager.shared.validAccessToken(instanceId: instance.id)
+        case .openClaw, .hermes:
+            token = nil
         case .unsupported:
             token = nil
         }
@@ -1012,6 +1022,8 @@ struct ProviderInstanceDetailView: View {
         case .antigravity: return "API Key..."
         case .openRouter: return "sk-or-..."
         case .openAIResponses: return "sk-..."
+        case .openClaw: return "Gateway Token"
+        case .hermes: return "Token / Credential"
         case .unsupported: return ""
         }
     }
@@ -1630,4 +1642,3 @@ private struct ProviderShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
-

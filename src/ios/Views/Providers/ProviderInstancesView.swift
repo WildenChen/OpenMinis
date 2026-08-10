@@ -14,12 +14,11 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            // [T-mimo-shadow-voice] Every normal instance appears under its
-            // providerType section. OpenClaw has its own visible provider name
-            // while retaining the existing internal OpenAI compatibility slot.
+            // Every configured instance is rendered under its first-class
+            // providerType section, including external agent backends.
             ForEach(ProviderType.allCases, id: \.self) { type in
                 let instancesOfType = store.instances.filter {
-                    $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
+                    $0.providerType == type
                 }
                 if !instancesOfType.isEmpty {
                     Section(type.displayName) {
@@ -32,18 +31,6 @@ struct ProviderInstancesView: View {
                         }
                         .onMove { source, destination in
                             moveInstances(in: type, from: source, to: destination)
-                        }
-                    }
-                }
-            }
-            let openClawInstances = store.instances.filter(OpenClawNativeProvider.isInstance)
-            if !openClawInstances.isEmpty {
-                Section("OpenClaw") {
-                    ForEach(openClawInstances) { _ in
-                        NavigationLink {
-                            ExternalAgentBackendSettingsView()
-                        } label: {
-                            OpenClawProviderRow()
                         }
                     }
                 }
@@ -243,6 +230,7 @@ private struct InstanceRow: View {
         case .openAIResponses: return false // API key only
         case .xAI: return XAIOAuthManager.shared.isAuthenticated(instanceId: instance.id)
         case .kimiCode: return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
+        case .openClaw, .hermes: return false
         case .unsupported: return false // synced from newer build
         }
     }

@@ -41,12 +41,13 @@ enum DebugRPCProvider {
             case .openAIResponses: supportedCreds = ["apiKey"]
             case .xAI: supportedCreds = ["apiKey", "oauth"]
             case .kimiCode: supportedCreds = ["oauth"]
+            case .openClaw, .hermes: supportedCreds = ["apiKey"]
             case .unsupported: supportedCreds = []
             }
             let customBaseSupported: Bool
             switch type {
             case .openAI, .openRouter, .openAIResponses, .gemini, .xAI, .kimiCode: customBaseSupported = true
-            case .anthropic, .antigravity, .unsupported: customBaseSupported = false
+            case .anthropic, .antigravity, .openClaw, .hermes, .unsupported: customBaseSupported = false
             }
             return [
                 "id": type.rawValue,

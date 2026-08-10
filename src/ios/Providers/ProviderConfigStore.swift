@@ -193,6 +193,7 @@ final class ProviderConfigStore: ObservableObject {
         // source of truth. [T-icloud-modelgroup-member-loss]
         self.config = Self.load(from: fileURL)
         self.lastSavedSnapshot = self.config
+        migrateLegacyOpenClawProviderIfNeeded()
         ensureVoiceTemplateModels()
         Self.setupDBAndMigrate(jsonURL: fileURL) { [weak self] db in
             Task { @MainActor in
@@ -642,9 +643,39 @@ final class ProviderConfigStore: ObservableObject {
 
     var instances: [ProviderInstance] { config.instances }
 
+    /// Converts the shipped marker-based OpenClaw instance into the formal
+    /// ProviderType without changing its instance or model identifiers. This
+    /// preserves existing session bindings and the OpenClaw agent selection.
+    private func migrateLegacyOpenClawProviderIfNeeded() {
+        guard let index = config.instances.firstIndex(where: {
+            $0.providerType == .openAI && $0.effectiveCustomUserAgent == FirstClassAgentBackendProvider.legacyOpenClawMarker
+        }) else { return }
+        let legacy = config.instances[index]
+        let transport = OpenClawBackendConfigStore.load()
+        let target = config.modelEntries.first(where: { $0.providerInstanceId == legacy.id })?.baseModel.id ?? transport.agentID
+        let migrated = ProviderInstance(
+            id: legacy.id, label: legacy.label, providerType: .openClaw,
+            credentialType: .apiKey, isEnabled: legacy.isEnabled, createdAt: legacy.createdAt,
+            customBaseURL: transport.baseURL.absoluteString, appendV1Suffix: false
+        )
+        config.instances[index] = migrated
+        AgentBackendProviderSettings.setTargetID(target, for: legacy.id)
+        if ProviderKeychainHelper.loadAPIKey(instanceId: legacy.id) == FirstClassAgentBackendProvider.legacyOpenClawCredentialMarker,
+           let token = OpenClawBackendCredentialStore.load(), !token.isEmpty {
+            ProviderKeychainHelper.saveAPIKey(token, instanceId: legacy.id)
+            OpenClawBackendCredentialStore.delete()
+        }
+        AgentBackendConfigStore.setActive(nil)
+        logger.info("Migrated legacy OpenClaw provider to ProviderType.openClaw")
+    }
+
     func addInstance(_ instance: ProviderInstance) {
         config.instances.append(instance)
-        if instance.credentialType == .oauth {
+        if FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) {
+            let entry = ModelEntry(providerInstanceId: instance.id, model: FirstClassAgentBackendProvider.seedModel(for: instance))
+            config.modelEntries.append(entry)
+            logger.info("[ModelList] addInstance (agent backend): instance=\(instance.label) seeded \(entry.baseModel.id)")
+        } else if instance.credentialType == .oauth {
             // OAuth instances: pre-populate with static built-in list, enriched with models.dev data.
             let builtIn: [LLMModel]
             let hasManualToken = ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token") != nil
@@ -2448,6 +2479,8 @@ final class ProviderConfigStore: ObservableObject {
             let kimiBase = customBase ?? "https://api.kimi.com/coding"
             let kimiAppendV1 = customBase == nil ? true : appendV1  // default base …/coding needs /v1 appended
             return try await OpenAIModelsAPI.fetchModels(apiKey: token, baseURL: kimiBase, appendV1Suffix: kimiAppendV1, forceRefresh: forceRefresh, userAgent: nil)
+        case (.openClaw, _), (.hermes, _):
+            return instance.providerType.builtInModels
         case (.unsupported, _):
             // Synced from a newer build — can't fetch; keep whatever's stored.
             return []
@@ -2629,7 +2662,7 @@ final class ProviderConfigStore: ObservableObject {
         case .kimiCode: return "https://api.kimi.com/coding"
         case .gemini: return "https://generativelanguage.googleapis.com"
         case .openRouter: return "https://openrouter.ai/api"
-        case .antigravity: return nil // No public base URL
+        case .antigravity, .openClaw, .hermes: return nil // No public base URL
         case .unsupported: return nil // synced from newer build
         }
     }

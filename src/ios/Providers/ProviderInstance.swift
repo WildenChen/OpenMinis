@@ -146,7 +146,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
         switch providerType {
         case .openAI, .openAIResponses, .openRouter, .xAI, .kimiCode, .anthropic:
             return true
-        case .gemini, .antigravity, .unsupported:
+        case .gemini, .antigravity, .openClaw, .hermes, .unsupported:
             return false
         }
     }
@@ -288,7 +288,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
             return ProviderKeychainHelper.loadOAuthToken(
                 instanceId: id, as: KimiTokenStorage.self, caller: "hasAnyCredential"
             ) != nil
-        case .antigravity, .openRouter, .unsupported:
+        case .antigravity, .openRouter, .openClaw, .hermes, .unsupported:
             // unsupported = synced from a newer build; no usable credential here.
             // antigravity stores its token via AntigravityOAuthManager (no
             // standalone Codable used by the diagnostic); OpenRouter is
