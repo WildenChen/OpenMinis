@@ -75,6 +75,22 @@ jobs:
           )
           p.write_text(s)
           PY
+
+          # The upstream script normally downloads from ffmpeg.org. Hosted CI
+          # saw an otherwise healthy build fail on a connection reset near the
+          # end of that download, so pre-seed the same 6.1.2 source directory
+          # from FFmpeg's official GitHub tag with curl retries.
+          if [ ! -d deps/ffmpeg-6.1.2 ]; then
+            tmp="$(mktemp -d)"
+            curl -fL \
+              --retry 6 --retry-delay 2 --retry-all-errors \
+              https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n6.1.2.tar.gz \
+              -o "$tmp/ffmpeg.tar.gz"
+            tar -xzf "$tmp/ffmpeg.tar.gz" -C "$tmp"
+            mv "$tmp/FFmpeg-n6.1.2" deps/ffmpeg-6.1.2
+            rm -rf "$tmp"
+          fi
+
           ./deps/build_lame.sh
           ./deps/build_ffmpeg.sh
           ./deps/build_ish.sh
