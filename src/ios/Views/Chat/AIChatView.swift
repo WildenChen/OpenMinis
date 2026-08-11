@@ -600,7 +600,9 @@ struct AIChatView: View {
         // reaches this session's real ViewModel; dismissing it reveals the
         // existing chat history as the secondary surface.
         .fullScreenCover(isPresented: $isAvatarPrimaryPresented) {
-            AvatarShellWebViewScreen()
+            AvatarShellWebViewScreen(onUnavailable: {
+                isAvatarPrimaryPresented = false
+            })
                 .ignoresSafeArea()
                 .statusBar(hidden: true)
         }
@@ -1652,6 +1654,7 @@ struct AIChatView: View {
             enhancedCacheEnabled: cached.vm.enhancedCacheEnabled,
             showFastModeToggle: activeModelSupportsFastMode,
             fastModeEnabled: codexFastModeEnabled,
+            onOpenAvatar: { isAvatarPrimaryPresented = true },
             onNewChat: { requestNewChatFromMenu() },
             // [T-chat-menu-compact-entry] Same effect as the /compact slash
             // command (AIChatViewModel+SlashCommands case "compact").
@@ -4831,6 +4834,8 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
     let showFastModeToggle: Bool
     let fastModeEnabled: Bool
 
+    let onOpenAvatar: () -> Void
+
     let onNewChat: () -> Void
     let onCompact: () -> Void
     let onClearChat: () -> Void
@@ -4921,6 +4926,9 @@ private struct ChatTrailingMenuButton: UIViewRepresentable {
         groups.append(UIMenu(options: .displayInline, children: [
             UIAction(title: String(localized: "New Chat"),
                      image: UIImage(systemName: "square.and.pencil")) { _ in coordinator.parent.onNewChat() },
+            UIAction(title: "Avatar", image: UIImage(systemName: "person.crop.rectangle")) { _ in
+                coordinator.parent.onOpenAvatar()
+            },
         ]))
 
         // [T-chat-menu-compact-entry] Compact sits ABOVE Clear Chat in its own

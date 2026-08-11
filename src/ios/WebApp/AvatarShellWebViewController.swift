@@ -66,12 +66,15 @@ enum SoulNestAvatarPresentation {
 /// `window.SoulNestAvatar` presentation API; the bridge never exposes backend
 /// secrets or native tool objects to JavaScript.
 final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
+    private let onUnavailable: () -> Void
     private var webView: WKWebView!
     private var readAccessRoot: URL!
     private var pageReady = false
     private var pendingPresentation: [AnyHashable: Any]?
+    private var didReportUnavailable = false
 
-    init() {
+    init(onUnavailable: @escaping () -> Void = {}) {
+        self.onUnavailable = onUnavailable
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .fullScreen
     }
@@ -143,11 +146,16 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
         guard let folder = Bundle.main.url(forResource: nil, withExtension: nil, subdirectory: "Avatar"),
               let html = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Avatar") else {
             avatarShellLogger.error("Avatar bundle folder missing")
+            recoverToChat(reason: "bundle missing")
             return
         }
         readAccessRoot = folder
         avatarShellLogger.info("loading avatar shell html=\(html.lastPathComponent)")
         webView.loadFileURL(html, allowingReadAccessTo: folder)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self, !self.pageReady else { return }
+            self.recoverToChat(reason: "page did not finish loading")
+        }
     }
 
     @objc private func edgePanned(_ r: UIScreenEdgePanGestureRecognizer) {
@@ -306,10 +314,28 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         avatarShellLogger.error("didFail: \(error.localizedDescription)")
+        recoverToChat(reason: "navigation failed")
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         avatarShellLogger.error("didFailProvisional: \(error.localizedDescription)")
+        recoverToChat(reason: "provisional navigation failed")
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        avatarShellLogger.error("web content process terminated")
+        recoverToChat(reason: "web content process terminated")
+    }
+
+    /// The page owns media fallback. This path is only for a missing bundle or
+    /// a WebKit/page failure, where leaving the full-screen black host visible
+    /// would strand the user away from the normal chat UI.
+    private func recoverToChat(reason: String) {
+        guard !didReportUnavailable else { return }
+        didReportUnavailable = true
+        avatarShellLogger.error("avatar unavailable; returning to chat: \(reason)")
+        DispatchQueue.main.async { [onUnavailable] in onUnavailable() }
+        dismiss(animated: true)
     }
 
     // MARK: - WKUIDelegate
@@ -327,8 +353,10 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
 /// SwiftUI wrapper presented full-screen from the app root, mirroring
 /// `WebAppWebViewScreen`.
 struct AvatarShellWebViewScreen: UIViewControllerRepresentable {
+    var onUnavailable: () -> Void = {}
+
     func makeUIViewController(context: Context) -> AvatarShellWebViewController {
-        AvatarShellWebViewController()
+        AvatarShellWebViewController(onUnavailable: onUnavailable)
     }
 
     func updateUIViewController(_ uiViewController: AvatarShellWebViewController, context: Context) {

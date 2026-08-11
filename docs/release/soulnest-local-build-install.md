@@ -85,6 +85,23 @@ xcodebuild -project src/ios/Minis.xcodeproj \
 
 Use a device destination. The normal native dependency scripts build iOS/device arm64 artifacts, not simulator artifacts.
 
+### LiveContainer package with private Avatar media
+
+GitHub Actions intentionally has no access to private Yujie media and produces
+the bundled-placeholder variant. After making an unsigned archive locally,
+package a LiveContainer IPA with the private pack in one command:
+
+```sh
+python3 scripts/package_soulnest_livecontainer_ipa.py \
+  build/SoulNest.xcarchive/Products/Applications/Minis.app \
+  "$HOME/Library/Application Support/SoulNest/AvatarAssets/yujie-v1" \
+  build/SoulNest-LiveContainer-yujie.ipa
+```
+
+The pack is copied only into the IPA's `Payload/SoulNest.app/Avatar` bundle;
+it is not added to Git. If the pack is absent, use the normal GitHub/local
+unsigned IPA instead: its bundled placeholder clips remain functional.
+
 ## 7. Physical-device install
 
 After the unsigned compile check succeeds:
