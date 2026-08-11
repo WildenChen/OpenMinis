@@ -226,6 +226,10 @@ struct AIChatView: View {
     // and triggered an EXC_BAD_ACCESS stack-overflow during
     // `__swift_instantiateConcreteTypeFromMangledNameV2`.
     @StateObject private var speechManager = SpeechRecognitionManager.shared
+    /// True only for a mic interaction initiated from the immersive Avatar
+    /// shell. It lets existing STT hand its recognized text straight into the
+    /// normal chat/session send path without creating another speech stack.
+    @State private var avatarVoiceTurnActive = false
     @ObservedObject private var mentionIndex = FileMentionIndex.shared
     @ObservedObject private var configStore = ProviderConfigStore.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -1205,6 +1209,35 @@ struct AIChatView: View {
                   updatedId == sid else { return }
             refreshTitlePillSession()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .soulNestAvatarInput)) { note in
+            guard !isReadOnly,
+                  let type = note.userInfo?["type"] as? String else { return }
+            switch type {
+            case "send":
+                guard !vm.isProcessing,
+                      let text = note.userInfo?["text"] as? String,
+                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                vm.inputText = text
+                performSend()
+            case "mic":
+                guard !vm.isProcessing else { return }
+                vm.voiceUsedInComposition = true
+                VoiceModePreference.shared.enteredFromText = true
+                withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
+                avatarVoiceTurnActive = true
+                SoulNestAvatarPresentation.thinking()
+                // The inline panel owns permission checks and VAD setup. Let
+                // its onAppear run first, then invoke the exact same existing
+                // button action used by the normal push-to-talk control.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 180_000_000)
+                    guard avatarVoiceTurnActive, !vm.isProcessing else { return }
+                    voiceVM.handleMainButtonTap()
+                }
+            default:
+                break
+            }
+        }
         .onChange(of: shareCoordinator.bufferVersion) { newVersion in
             // Warm start: user is already in a session when share arrives
             minisLogger.info("[Share] AIChatView.onChange(bufferVersion)=\(newVersion) sessionId=\(sessionId ?? "nil") hasBuffer=\(shareCoordinator.pendingShareBuffer != nil)")
@@ -1356,6 +1389,15 @@ struct AIChatView: View {
                     }
                 }
             }
+        }
+        .onChange(of: voiceVM.state) { state in
+            guard avatarVoiceTurnActive, state == .result,
+                  !vm.isProcessing else { return }
+            let text = voiceVM.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            avatarVoiceTurnActive = false
+            vm.inputText = text
+            performSend()
         }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to

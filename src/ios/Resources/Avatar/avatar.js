@@ -221,6 +221,17 @@
       }, 900 + estimateMs(label(manifest, 'cannedReply')));
     }
 
+    // Native SoulNest keeps all chat/session/credential work on-device. A
+    // standalone PWA has no native bridge and retains the local visual demo.
+    function postNative(type, value) {
+      var handler = global.webkit && global.webkit.messageHandlers && global.webkit.messageHandlers.soulNestAvatar;
+      if (!handler || typeof handler.postMessage !== 'function') return false;
+      var payload = { type: type };
+      if (value) payload.text = value;
+      handler.postMessage(payload);
+      return true;
+    }
+
     function sendMessage(text) {
       var trimmed = (text || '').trim();
       if (!trimmed) return;
@@ -234,6 +245,10 @@
       }
       setState('thinking');
       setSubtitle(stateLabel(manifest, 'thinking'));
+      if (postNative('send', trimmed)) {
+        // The native stream bridge supplies the real subtitle and final state.
+        return;
+      }
       window.setTimeout(function () {
         if (token !== flowToken) return;
         if (userLineEl) userLineEl.hidden = true;
@@ -277,7 +292,12 @@
 
     if (demoBtn) demoBtn.addEventListener('click', runDemoFlow);
     if (micBtn) micBtn.addEventListener('click', function () {
-      setSubtitle(label(manifest, 'micComingSoon'));
+      if (postNative('mic')) {
+        setState('thinking');
+        setSubtitle(label(manifest, 'thinking'));
+      } else {
+        setSubtitle(label(manifest, 'micComingSoon'));
+      }
     });
     if (sendBtn) sendBtn.addEventListener('click', function () { sendMessage(textInput ? textInput.value : ''); });
     if (textInput) textInput.addEventListener('keydown', function (e) {
