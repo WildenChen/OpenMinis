@@ -78,8 +78,12 @@ private struct NativeAvatarPlayer: UIViewRepresentable {
     static func dismantleUIView(_ uiView: PlayerView, coordinator: Coordinator) { coordinator.stop() }
     final class PlayerView: UIView { override class var layerClass: AnyClass { AVPlayerLayer.self }; var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer } }
     final class Coordinator {
-        let view = PlayerView(); let player = AVPlayer(); var token: NSObjectProtocol?; var current: URL?; var looping = true; var onFinished: () -> Void
-        init(onFinished: @escaping () -> Void) { self.onFinished = onFinished; view.playerLayer.player = player; view.playerLayer.videoGravity = .resizeAspectFill }
+        let view = PlayerView(); let player = AVPlayer(); var token: NSObjectProtocol?; var backgroundToken: NSObjectProtocol?; var foregroundToken: NSObjectProtocol?; var current: URL?; var looping = true; var onFinished: () -> Void
+        init(onFinished: @escaping () -> Void) {
+            self.onFinished = onFinished; view.playerLayer.player = player; view.playerLayer.videoGravity = .resizeAspectFill
+            backgroundToken = NotificationCenter.default.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in self?.player.pause() }
+            foregroundToken = NotificationCenter.default.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in self?.player.play() }
+        }
         func update(url: URL?, looping: Bool, onFinished: @escaping () -> Void) {
             self.looping = looping; self.onFinished = onFinished
             guard current != url else { return }
@@ -93,7 +97,7 @@ private struct NativeAvatarPlayer: UIViewRepresentable {
             }
             player.isMuted = true; player.play()
         }
-        func stop() { player.pause(); if let token { NotificationCenter.default.removeObserver(token) } }
+        func stop() { player.pause(); if let token { NotificationCenter.default.removeObserver(token) }; if let backgroundToken { NotificationCenter.default.removeObserver(backgroundToken) }; if let foregroundToken { NotificationCenter.default.removeObserver(foregroundToken) } }
         deinit { stop() }
     }
 }
