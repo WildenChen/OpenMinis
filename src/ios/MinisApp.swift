@@ -232,7 +232,7 @@ struct MinisApp: App {
                 // SoulNest avatar shell (minis://avatar) — same immersive
                 // treatment as WebApp covers.
                 .fullScreenCover(isPresented: $isAvatarShellPresented) {
-                    AvatarShellWebViewScreen()
+                    NativeAvatarView(onClose: { isAvatarShellPresented = false }, onSend: { _ in }, onMic: {})
                         .ignoresSafeArea()
                         .statusBar(hidden: true)
                 }

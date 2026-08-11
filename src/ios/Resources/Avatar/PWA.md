@@ -1,6 +1,8 @@
 # SoulNest Avatar PWA
 
-The files in this directory are the shared SoulNest Avatar presentation package. The same HTML/CSS/JS/manifest is bundled in the iOS app and can also be served as a standalone installable PWA for UI/asset testing.
+The files in this directory are the standalone SoulNest Avatar PWA package. They can be served as an installable web surface for UI/asset testing.
+
+The SoulNest iOS app does not use this Web renderer: iOS Avatar runtime is a native SwiftUI/UIKit AVPlayer surface. The PWA keeps its own HTML/CSS/JS `<video>` renderer and the same logical asset naming contract.
 
 ## Run standalone
 
