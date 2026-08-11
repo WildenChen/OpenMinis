@@ -22,6 +22,21 @@
     return stateId.indexOf('talk_') === 0;
   }
 
+  // Final Yujie packs are intentionally private. Keep the public PWA and a
+  // clean source checkout usable by selecting the tiny bundled clip matching
+  // a missing private state.
+  function bundledFallbackSrc(src) {
+    var name = (src || '').split('/').pop() || '';
+    if (name.indexOf('idle_') === 0) return 'assets/videos/placeholder-idle.mp4';
+    if (name === 'thinking.mp4') return 'assets/videos/placeholder-thinking.mp4';
+    if (name === 'shy.mp4') return 'assets/videos/placeholder-shy.mp4';
+    if (name === 'sad.mp4') return 'assets/videos/placeholder-sad.mp4';
+    if (name === 'angry.mp4') return 'assets/videos/placeholder-angry.mp4';
+    if (name === 'talk_happy.mp4') return 'assets/videos/placeholder-happy.mp4';
+    if (name === 'talk_excited.mp4') return 'assets/videos/placeholder-excited.mp4';
+    return 'assets/videos/placeholder-talking.mp4';
+  }
+
   function collectStates(manifest) {
     var order = [];
     var seen = {};
@@ -131,7 +146,6 @@
     function showClip(def) {
       if (!def || !def.src) { setFallback(true); return; }
       var next = currentLayer === layerA ? layerB : layerA;
-      next.src = def.src;
       next.loop = def.mode === 'loop';
       next.muted = true;
       next.removeEventListener('ended', next._onEnded);
@@ -141,9 +155,20 @@
       }
       next.load();
       var settled = false;
+      var triedBundledFallback = false;
+      var loadTimeout = null;
+      function loadSource(src) {
+        next.src = src;
+        next.load();
+        if (loadTimeout) window.clearTimeout(loadTimeout);
+        loadTimeout = window.setTimeout(function () {
+          if (!settled) onError();
+        }, 1500);
+      }
       function onReady() {
         if (settled) return;
         settled = true;
+        if (loadTimeout) window.clearTimeout(loadTimeout);
         next.removeEventListener('loadeddata', onReady);
         next.removeEventListener('error', onError);
         playVideo(next);
@@ -154,7 +179,13 @@
       }
       function onError() {
         if (settled) return;
+        if (!triedBundledFallback) {
+          triedBundledFallback = true;
+          loadSource(bundledFallbackSrc(def.src));
+          return;
+        }
         settled = true;
+        if (loadTimeout) window.clearTimeout(loadTimeout);
         next.removeEventListener('loadeddata', onReady);
         next.removeEventListener('error', onError);
         if (currentLayer) currentLayer.classList.remove('active');
@@ -162,12 +193,7 @@
       }
       next.addEventListener('loadeddata', onReady);
       next.addEventListener('error', onError);
-      window.setTimeout(function () {
-        if (!settled && next.readyState >= 2) onReady();
-      }, 0);
-      window.setTimeout(function () {
-        if (!settled) { settled = true; next.removeEventListener('loadeddata', onReady); next.removeEventListener('error', onError); setFallback(true); }
-      }, 1500);
+      loadSource(def.src);
     }
 
     function setFallback(visible) {
