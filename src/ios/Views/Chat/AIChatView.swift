@@ -600,9 +600,27 @@ struct AIChatView: View {
         // reaches this session's real ViewModel; dismissing it reveals the
         // existing chat history as the secondary surface.
         .fullScreenCover(isPresented: $isAvatarPrimaryPresented) {
-            AvatarShellWebViewScreen(onUnavailable: {
-                isAvatarPrimaryPresented = false
-            })
+            NativeAvatarView(
+                onClose: { isAvatarPrimaryPresented = false },
+                onSend: { text in
+                    guard !isReadOnly, !vm.isProcessing else { return }
+                    vm.inputText = text
+                    performSend()
+                },
+                onMic: {
+                    guard !isReadOnly, !vm.isProcessing else { return }
+                    vm.voiceUsedInComposition = true
+                    VoiceModePreference.shared.enteredFromText = true
+                    withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
+                    avatarVoiceTurnActive = true
+                    SoulNestAvatarPresentation.thinking()
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 180_000_000)
+                        guard avatarVoiceTurnActive, !vm.isProcessing else { return }
+                        voiceVM.handleMainButtonTap()
+                    }
+                }
+            )
                 .ignoresSafeArea()
                 .statusBar(hidden: true)
         }
@@ -1232,35 +1250,6 @@ struct AIChatView: View {
                   let updatedId = note.object as? String,
                   updatedId == sid else { return }
             refreshTitlePillSession()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .soulNestAvatarInput)) { note in
-            guard !isReadOnly,
-                  let type = note.userInfo?["type"] as? String else { return }
-            switch type {
-            case "send":
-                guard !vm.isProcessing,
-                      let text = note.userInfo?["text"] as? String,
-                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                vm.inputText = text
-                performSend()
-            case "mic":
-                guard !vm.isProcessing else { return }
-                vm.voiceUsedInComposition = true
-                VoiceModePreference.shared.enteredFromText = true
-                withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
-                avatarVoiceTurnActive = true
-                SoulNestAvatarPresentation.thinking()
-                // The inline panel owns permission checks and VAD setup. Let
-                // its onAppear run first, then invoke the exact same existing
-                // button action used by the normal push-to-talk control.
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 180_000_000)
-                    guard avatarVoiceTurnActive, !vm.isProcessing else { return }
-                    voiceVM.handleMainButtonTap()
-                }
-            default:
-                break
-            }
         }
         .onChange(of: shareCoordinator.bufferVersion) { newVersion in
             // Warm start: user is already in a session when share arrives
