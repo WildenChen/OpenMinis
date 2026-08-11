@@ -1,7 +1,7 @@
 window.SOULNEST_MANIFEST = {
   "schemaVersion": 1,
   "character": "yujie",
-  "assetVersion": "1",
+  "assetVersion": "yujie-v1",
   "nameLocalized": { "zh-Hant": "語婕", "en": "Yujie" },
   "locale": "zh-Hant",
   "fallbackLocale": "en",
@@ -13,16 +13,16 @@ window.SOULNEST_MANIFEST = {
       "defaultIdle": "idle_01",
       "fallbackTalking": "talk_soft",
       "states": {
-        "idle_01":     { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
-        "idle_02":     { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
-        "thinking":    { "src": "assets/videos/placeholder-thinking.mp4", "mode": "loop" },
-        "talk_soft":   { "src": "assets/videos/placeholder-talking.mp4",  "mode": "loop" },
-        "talk_happy":  { "src": "assets/videos/placeholder-happy.mp4",    "mode": "loop" },
-        "talk_excited":{ "src": "assets/videos/placeholder-excited.mp4",  "mode": "loop" },
-        "shy":         { "src": "assets/videos/placeholder-shy.mp4",      "mode": "once", "fallback": "idle_01" },
-        "sad":         { "src": "assets/videos/placeholder-sad.mp4",      "mode": "once", "fallback": "idle_01" },
-        "angry":       { "src": "assets/videos/placeholder-angry.mp4",    "mode": "once", "fallback": "idle_01" },
-        "caring":      { "src": "assets/videos/placeholder-talking.mp4",  "mode": "once", "fallback": "idle_01" }
+        "idle_01":     { "src": "assets/videos/yujie-v1/casual/idle_01.mp4",      "mode": "loop" },
+        "idle_02":     { "src": "assets/videos/yujie-v1/casual/idle_02.mp4",      "mode": "loop" },
+        "thinking":    { "src": "assets/videos/yujie-v1/casual/thinking.mp4",     "mode": "loop" },
+        "talk_soft":   { "src": "assets/videos/yujie-v1/casual/talk_soft.mp4",    "mode": "loop" },
+        "talk_happy":  { "src": "assets/videos/yujie-v1/casual/talk_happy.mp4",   "mode": "loop" },
+        "talk_excited":{ "src": "assets/videos/yujie-v1/casual/talk_excited.mp4", "mode": "loop" },
+        "shy":         { "src": "assets/videos/yujie-v1/casual/shy.mp4",          "mode": "once", "fallback": "idle_01" },
+        "sad":         { "src": "assets/videos/yujie-v1/casual/sad.mp4",          "mode": "once", "fallback": "idle_01" },
+        "angry":       { "src": "assets/videos/yujie-v1/casual/angry.mp4",        "mode": "once", "fallback": "idle_01" },
+        "caring":      { "src": "assets/videos/yujie-v1/casual/caring.mp4",       "mode": "once", "fallback": "idle_01" }
       }
     },
     "office": {
@@ -31,9 +31,9 @@ window.SOULNEST_MANIFEST = {
       "defaultIdle": "idle_01",
       "fallbackTalking": "talk_soft",
       "states": {
-        "idle_01":  { "src": "assets/videos/placeholder-idle.mp4",     "mode": "loop" },
-        "thinking": { "src": "assets/videos/placeholder-thinking.mp4", "mode": "loop" },
-        "talk_soft":{ "src": "assets/videos/placeholder-talking.mp4",  "mode": "loop" }
+        "idle_01":  { "src": "assets/videos/yujie-v1/office/idle_01.mp4",  "mode": "loop" },
+        "thinking": { "src": "assets/videos/yujie-v1/office/thinking.mp4", "mode": "loop" },
+        "talk_soft":{ "src": "assets/videos/yujie-v1/office/talk_soft.mp4","mode": "loop" }
       }
     }
   },
