@@ -43,13 +43,7 @@ extension AIChatViewModel {
         case .openClaw:
             return OpenClawFirstClassProvider(instance: instance, model: entry.model)
         case .hermes:
-            let endpoint = URL(string: instance.effectiveCustomBaseURL ?? "http://127.0.0.1:8080")!
-            return AgentBackendProvider(backend: HermesBackend(
-                endpoint: endpoint,
-                profileID: FirstClassAgentBackendProvider.targetID(for: instance),
-                credential: ProviderKeychainHelper.loadAPIKey(instanceId: instance.id),
-                model: entry.model
-            ))
+            return HermesFirstClassProvider(instance: instance, model: entry.model)
         case .unsupported:
             logger.error("\(instance.providerType) has no agent provider; returning placeholder")
             return AnthropicAgentProvider(provider: AnthropicProvider(apiKey: "", model: entry.model))
