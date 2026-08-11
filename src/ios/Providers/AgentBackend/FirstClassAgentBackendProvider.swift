@@ -38,6 +38,34 @@ enum FirstClassAgentBackendProvider {
         AgentBackendProviderSettings.targetID(for: instance.id)
     }
 
+    /// OpenClaw's Gateway owner token is device-local by design. Its normal
+    /// ProviderInstance keychain item contains only this non-secret marker so
+    /// provider metadata may sync without ever syncing the owner credential.
+    static func credential(for instance: ProviderInstance) -> String? {
+        if instance.providerType == .openClaw {
+            return OpenClawBackendCredentialStore.load()
+        }
+        return ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+    }
+
+    @discardableResult
+    static func saveCredential(_ credential: String, for instance: ProviderInstance) -> Bool {
+        if instance.providerType == .openClaw {
+            guard OpenClawBackendCredentialStore.save(credential) else { return false }
+            ProviderKeychainHelper.saveAPIKey(legacyOpenClawCredentialMarker, instanceId: instance.id)
+            return true
+        }
+        ProviderKeychainHelper.saveAPIKey(credential, instanceId: instance.id)
+        return true
+    }
+
+    static func deleteCredential(for instance: ProviderInstance) {
+        if instance.providerType == .openClaw {
+            OpenClawBackendCredentialStore.delete()
+        }
+        ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
+    }
+
     static func seedModel(for instance: ProviderInstance) -> LLMModel {
         let target = targetID(for: instance)
         let base = instance.providerType == .openClaw ? OpenClawBackend.defaultModel : HermesBackend.defaultModel
@@ -74,7 +102,7 @@ struct OpenClawFirstClassProvider: SessionAwareAgentProvider {
         maxTokens: Int, thinkingLevel: ThinkingLevel
     ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
         guard let endpoint = instance.effectiveCustomBaseURL.flatMap(URL.init(string:)),
-              let token = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id), !token.isEmpty else {
+              let token = FirstClassAgentBackendProvider.credential(for: instance), !token.isEmpty else {
             throw OpenClawFirstClassProviderError.missingCredential
         }
         let backend = OpenClawBackend(config: OpenClawBackendConfig(

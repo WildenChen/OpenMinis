@@ -148,9 +148,13 @@ struct ProviderInstanceDetailView: View {
             } header: {
                 Text("Credential")
             } footer: {
-                Text(instance.credentialType == .apiKey
-                     ? "API key is stored securely in the iOS Keychain."
-                     : "OAuth tokens are stored per-instance in the iOS Keychain.")
+                if instance.providerType == .openClaw {
+                    Text("Gateway token stays in this device's non-synchronizable Keychain storage.")
+                } else {
+                    Text(instance.credentialType == .apiKey
+                         ? "API key is stored securely in the iOS Keychain."
+                         : "OAuth tokens are stored per-instance in the iOS Keychain.")
+                }
             }
 
             // MARK: Custom Base URL
@@ -245,7 +249,7 @@ struct ProviderInstanceDetailView: View {
                 Toggle("Enabled", isOn: Binding(
                     get: { instance.isEnabled },
                     set: { newValue in
-                        let hasApiKey = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) != nil
+                        let hasApiKey = FirstClassAgentBackendProvider.credential(for: instance) != nil
                         let hasOAuth = ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token") != nil
                             || (instance.providerType == .anthropic && ClaudeOAuthManager.shared.isAuthenticated(instanceId: instance.id))
                         AppLogger(category: "Provider").info("toggleEnabled instanceId=\(instance.id.prefix(8)) type=\(instance.providerType.rawValue) old=\(instance.isEnabled) new=\(newValue) hasApiKey=\(hasApiKey) hasOAuth=\(hasOAuth)")
@@ -384,7 +388,7 @@ struct ProviderInstanceDetailView: View {
 
     @ViewBuilder
     private func apiKeyCredentialView(_ instance: ProviderInstance) -> some View {
-        let rawKey = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+        let rawKey = FirstClassAgentBackendProvider.credential(for: instance)
 
         HStack {
             // Always use TextField to keep the normal keyboard (SecureField
@@ -412,10 +416,10 @@ struct ProviderInstanceDetailView: View {
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.isEmpty {
                     AppLogger(category: "Provider").warning("apiKeyTextField onChange→DELETE instanceId=\(instance.id.prefix(8)) prevRawKeyHit=\(rawKey != nil) prevRawKeyLen=\(rawKey?.count ?? 0) newLen=\(newValue.count)")
-                    ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
+                    FirstClassAgentBackendProvider.deleteCredential(for: instance)
                 } else {
                     AppLogger(category: "Provider").info("apiKeyTextField onChange→SAVE instanceId=\(instance.id.prefix(8)) newLen=\(trimmed.count)")
-                    ProviderKeychainHelper.saveAPIKey(trimmed, instanceId: instance.id)
+                    _ = FirstClassAgentBackendProvider.saveCredential(trimmed, for: instance)
                 }
             }
 

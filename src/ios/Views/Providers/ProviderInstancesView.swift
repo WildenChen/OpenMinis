@@ -205,7 +205,7 @@ private struct InstanceRow: View {
     private var isConfigured: Bool {
         switch instance.credentialType {
         case .apiKey:
-            return ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) != nil
+            return FirstClassAgentBackendProvider.credential(for: instance) != nil
         case .oauth:
             return oauthIsAuthenticated
         }
@@ -233,7 +233,7 @@ private struct InstanceRow: View {
     private var credentialSummary: String {
         switch instance.credentialType {
         case .apiKey:
-            if let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) {
+            if let key = FirstClassAgentBackendProvider.credential(for: instance) {
                 return maskKey(key)
             }
             return String(localized: "No API key")

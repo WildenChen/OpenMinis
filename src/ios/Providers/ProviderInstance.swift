@@ -253,6 +253,9 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
     /// The uncached credential probe. Kept separate so the cache wraps it and
     /// tests / diagnostics can force a fresh read.
     func computeHasAnyCredential() -> Bool {
+        if providerType == .openClaw {
+            return OpenClawBackendCredentialStore.isConfigured
+        }
         // API-key path is identical across providers — query first.
         if ProviderKeychainHelper.loadAPIKey(instanceId: id, caller: "hasAnyCredential")?.isEmpty == false {
             return true

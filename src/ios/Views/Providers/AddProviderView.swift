@@ -801,7 +801,11 @@ struct AddProviderView: View {
             customBaseURL: base,
             appendV1Suffix: FirstClassAgentBackendProvider.isAgentBackend(effectiveType) ? false : appendV1SuffixInput
         )
-        ProviderKeychainHelper.saveAPIKey(trimmedKey, instanceId: instance.id)
+        guard FirstClassAgentBackendProvider.saveCredential(trimmedKey, for: instance) else {
+            errorMessage = String(localized: "Could not securely save the provider credential.")
+            isSaving = false
+            return
+        }
         if FirstClassAgentBackendProvider.isAgentBackend(effectiveType) {
             AgentBackendProviderSettings.setTargetID(agentIdentifierInput, for: instance.id)
         }
