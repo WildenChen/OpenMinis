@@ -52,19 +52,30 @@ final class NativeAvatarState: ObservableObject {
 struct NativeAvatarAssetResolver {
     static let states: Set<String> = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
     static let loopStates: Set<String> = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited"]
+
+    static func avatarRoot(resourceURL: URL? = Bundle.main.resourceURL, fileManager: FileManager = .default) -> URL? {
+        guard let resourceURL else { return nil }
+        let root = resourceURL.appendingPathComponent("Avatar", isDirectory: true)
+        guard fileManager.fileExists(atPath: root.path), fileManager.isReadableFile(atPath: root.path) else { return nil }
+        return root
+    }
+
     static func url(outfit: String, state: String) -> URL? {
-        let root = Bundle.main.url(forResource: nil, withExtension: nil, subdirectory: "Avatar")
+        let root = avatarRoot()
+        let manager = FileManager.default
         func file(_ outfit: String, _ state: String) -> URL? {
             guard let root else { return nil }
             let url = root.appendingPathComponent("assets/videos/yujie-v1/\(outfit)/\(state).mp4")
-            return FileManager.default.fileExists(atPath: url.path) ? url : nil
+            return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
         }
         let selectedOutfit = outfit == "shorts" ? "shorts_private_casual" : outfit
         if let url = file(selectedOutfit, state) ?? file(selectedOutfit, state.hasPrefix("talk_") ? "talk_soft" : "idle_01") ?? file("casual", state) { return url }
         let placeholder: String = switch state {
         case "idle_01", "idle_02": "idle"; case "thinking": "thinking"; case "talk_happy": "happy"; case "talk_excited": "excited"; case "shy": "shy"; case "sad": "sad"; case "angry": "angry"; case "caring": "talking"; default: "talking"
         }
-        return root?.appendingPathComponent("assets/videos/placeholder-\(placeholder).mp4")
+        guard let root else { return nil }
+        let url = root.appendingPathComponent("assets/videos/placeholder-\(placeholder).mp4")
+        return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
     }
 }
 
@@ -91,7 +102,7 @@ private final class NativeAvatarDiagnostics: ObservableObject {
         append("Bundle.main.executableURL: \(bundle.executableURL?.path ?? "nil")")
         append("NSHomeDirectory: \(NSHomeDirectory())")
 
-        let root = bundle.url(forResource: nil, withExtension: nil, subdirectory: "Avatar")
+        let root = NativeAvatarAssetResolver.avatarRoot(resourceURL: bundle.resourceURL, fileManager: manager)
         append("Avatar root: \(root?.path ?? "nil")")
         append("Avatar root exists/readable: \(root.map { manager.fileExists(atPath: $0.path) } ?? false)/\(root.map { manager.isReadableFile(atPath: $0.path) } ?? false)")
 
