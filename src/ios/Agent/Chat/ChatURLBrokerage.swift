@@ -8,12 +8,38 @@ private let logger = AppLogger(category: "AIChatVM")
 /// Restarts silent audio keep-alive after TTS finishes speaking,
 /// so the background audio session stays active between utterances.
 final class SpeechFinishedDelegate: NSObject, AVSpeechSynthesizerDelegate {
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            // This callback is the System-TTS playback boundary, not merely
+            // text generation, so Avatar motion follows audible speech.
+            SoulNestAvatarPresentation.talking()
+        }
+    }
+
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor in
             let mgr = BackgroundKeepAliveManager.shared
             if mgr.backgroundSpeakEnabled && mgr.isActive {
                 mgr.evaluateSilentAudioFromDelegate()
             }
+            settleAvatarWhenSpeechDrains(synthesizer)
+        }
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            settleAvatarWhenSpeechDrains(synthesizer)
+        }
+    }
+
+    @MainActor
+    private func settleAvatarWhenSpeechDrains(_ synthesizer: AVSpeechSynthesizer) {
+        // AVSpeechSynthesizer can have another utterance queued when one
+        // finishes. Check on the next main-loop turn so we only return to idle
+        // once the actual playback queue is empty.
+        DispatchQueue.main.async {
+            guard !synthesizer.isSpeaking else { return }
+            SoulNestAvatarPresentation.idle(clearSubtitle: false)
         }
     }
 }

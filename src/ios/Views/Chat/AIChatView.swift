@@ -230,6 +230,11 @@ struct AIChatView: View {
     /// shell. It lets existing STT hand its recognized text straight into the
     /// normal chat/session send path without creating another speech stack.
     @State private var avatarVoiceTurnActive = false
+    /// SoulNest conversations open in the immersive Avatar shell first. The
+    /// existing chat view remains mounted underneath as the history/settings
+    /// surface and continues to own the real session, tool loop and input path.
+    @State private var isAvatarPrimaryPresented = false
+    @State private var didPresentAvatarPrimary = false
     @ObservedObject private var mentionIndex = FileMentionIndex.shared
     @ObservedObject private var configStore = ProviderConfigStore.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -380,6 +385,7 @@ struct AIChatView: View {
     private var hasOverlayPresented: Bool {
         showFileBrowser || showBrowserSheet || showTerminal || showCamera
             || showPhotoPicker || showDocumentPicker || showModelPicker
+            || isAvatarPrimaryPresented
     }
 
     /// Tracks whether this ChatView is the currently visible screen.
@@ -589,6 +595,15 @@ struct AIChatView: View {
             kernelBootOverlay
         }
         .background(ChatColors.background)
+        // Avatar is the primary SoulNest conversation surface. Present it from
+        // the mounted chat rather than the app root so its native bridge always
+        // reaches this session's real ViewModel; dismissing it reveals the
+        // existing chat history as the secondary surface.
+        .fullScreenCover(isPresented: $isAvatarPrimaryPresented) {
+            AvatarShellWebViewScreen()
+                .ignoresSafeArea()
+                .statusBar(hidden: true)
+        }
         .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
             handleDropProviders(providers)
             return true
@@ -1191,6 +1206,13 @@ struct AIChatView: View {
             injectPendingTransferIfNeeded()
             isChatViewVisible = true
             refreshTitlePillSession()
+            if !isReadOnly && !didPresentAvatarPrimary {
+                didPresentAvatarPrimary = true
+                DispatchQueue.main.async {
+                    guard isChatViewVisible else { return }
+                    isAvatarPrimaryPresented = true
+                }
+            }
             // Notify workflow that THIS view is mounted + visible. If
             // the workflow is waiting for our session id, it will
             // transition to chatReady — our state observer below picks
