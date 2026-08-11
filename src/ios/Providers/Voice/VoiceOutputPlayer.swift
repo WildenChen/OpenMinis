@@ -268,6 +268,7 @@ final class VoiceOutputPlayer: NSObject, ObservableObject {
         isPlaying = false
         isPaused = false
         isSynthesizing = false
+        SoulNestAvatarPresentation.idle(clearSubtitle: false)
         releaseSessionIfSafe()
     }
 
@@ -293,6 +294,7 @@ final class VoiceOutputPlayer: NSObject, ObservableObject {
         refreshSynthesizingState()
         if queue.isEmpty && player == nil {
             isPlaying = false
+            SoulNestAvatarPresentation.idle(clearSubtitle: false)
             releaseSessionIfSafe()
         }
     }
@@ -324,6 +326,7 @@ final class VoiceOutputPlayer: NSObject, ObservableObject {
     func pause() {
         if let p = player, p.isPlaying { p.pause() }
         isPaused = true
+        SoulNestAvatarPresentation.idle(clearSubtitle: false)
     }
 
     /// Resume paused cloud audio. Resumes the live player if one is paused, and
@@ -332,7 +335,12 @@ final class VoiceOutputPlayer: NSObject, ObservableObject {
     func resume() {
         guard isPaused else { return }
         isPaused = false
-        if let p = player { p.play() } else { pumpPlayback() }
+        if let p = player {
+            p.play()
+            SoulNestAvatarPresentation.talking()
+        } else {
+            pumpPlayback()
+        }
     }
 
     /// The cloud TTS queue has drained — end the reply-TTS intent. The coordinator
@@ -567,6 +575,9 @@ final class VoiceOutputPlayer: NSObject, ObservableObject {
             p.play()
             player = p
             isPlaying = true
+            // AVAudioPlayer has accepted playback: drive the Avatar from the
+            // actual cloud/System-audio lifecycle, not token generation.
+            SoulNestAvatarPresentation.talking()
             VoiceLog.log(String(format: "TTS ▶︎ play #%d owner=%@ dur=%.2fs rate=%.2f queueAhead=%d bufferedAfter=%.2fs",
                 front.seq, String(front.ownerSessionId.prefix(8)), p.duration, p.rate, queue.count, bufferedAudioSeconds))
         } catch {
@@ -609,6 +620,7 @@ extension VoiceOutputPlayer: AVAudioPlayerDelegate {
             // Nothing left and nothing generating → release the session (guarded
             // so it never deactivates a recording session).
             if self.queue.isEmpty && self.player == nil && !generating {
+                SoulNestAvatarPresentation.idle(clearSubtitle: false)
                 self.releaseSessionIfSafe()
             }
         }

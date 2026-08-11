@@ -8,6 +8,10 @@ extension Notification.Name {
     /// Presentation-only bridge from the native chat lifecycle into the Avatar
     /// shell. It deliberately carries no backend/session/tool configuration.
     static let soulNestAvatarPresentation = Notification.Name("soulnest.avatar.presentation")
+    /// Avatar-shell input events. The payload carries only user interface
+    /// intent/text; provider configuration, session identity and credentials
+    /// stay in the native chat runtime.
+    static let soulNestAvatarInput = Notification.Name("soulnest.avatar.input")
 }
 
 /// Tiny presentation contract shared by the chat provider and Avatar host.
@@ -61,7 +65,7 @@ enum SoulNestAvatarPresentation {
 /// lifecycle events are translated into calls on the existing
 /// `window.SoulNestAvatar` presentation API; the bridge never exposes backend
 /// secrets or native tool objects to JavaScript.
-final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private var webView: WKWebView!
     private var readAccessRoot: URL!
     private var pageReady = false
@@ -88,6 +92,7 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
         view.backgroundColor = .black
 
         let cfg = WKWebViewConfiguration()
+        cfg.userContentController.add(self, name: "soulNestAvatar")
         // No login cookies to keep — a fresh in-memory session is fine and
         // avoids persisting anything the avatar page writes.
         cfg.websiteDataStore = .default()
@@ -246,6 +251,20 @@ final class AvatarShellWebViewController: UIViewController, WKNavigationDelegate
 
     @objc private func closeTapped() {
         dismiss(animated: true)
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "soulNestAvatar",
+              let payload = message.body as? [String: Any],
+              let type = payload["type"] as? String,
+              ["send", "mic"].contains(type) else { return }
+        var info: [String: Any] = ["type": type]
+        if type == "send", let text = payload["text"] as? String {
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            info["text"] = trimmed
+        }
+        NotificationCenter.default.post(name: .soulNestAvatarInput, object: nil, userInfo: info)
     }
 
     // MARK: - WKNavigationDelegate

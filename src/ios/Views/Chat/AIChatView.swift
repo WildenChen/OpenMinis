@@ -226,6 +226,15 @@ struct AIChatView: View {
     // and triggered an EXC_BAD_ACCESS stack-overflow during
     // `__swift_instantiateConcreteTypeFromMangledNameV2`.
     @StateObject private var speechManager = SpeechRecognitionManager.shared
+    /// True only for a mic interaction initiated from the immersive Avatar
+    /// shell. It lets existing STT hand its recognized text straight into the
+    /// normal chat/session send path without creating another speech stack.
+    @State private var avatarVoiceTurnActive = false
+    /// SoulNest conversations open in the immersive Avatar shell first. The
+    /// existing chat view remains mounted underneath as the history/settings
+    /// surface and continues to own the real session, tool loop and input path.
+    @State private var isAvatarPrimaryPresented = false
+    @State private var didPresentAvatarPrimary = false
     @ObservedObject private var mentionIndex = FileMentionIndex.shared
     @ObservedObject private var configStore = ProviderConfigStore.shared
     @ObservedObject private var fontSettings = FontSettings.shared
@@ -376,6 +385,7 @@ struct AIChatView: View {
     private var hasOverlayPresented: Bool {
         showFileBrowser || showBrowserSheet || showTerminal || showCamera
             || showPhotoPicker || showDocumentPicker || showModelPicker
+            || isAvatarPrimaryPresented
     }
 
     /// Tracks whether this ChatView is the currently visible screen.
@@ -585,6 +595,15 @@ struct AIChatView: View {
             kernelBootOverlay
         }
         .background(ChatColors.background)
+        // Avatar is the primary SoulNest conversation surface. Present it from
+        // the mounted chat rather than the app root so its native bridge always
+        // reaches this session's real ViewModel; dismissing it reveals the
+        // existing chat history as the secondary surface.
+        .fullScreenCover(isPresented: $isAvatarPrimaryPresented) {
+            AvatarShellWebViewScreen()
+                .ignoresSafeArea()
+                .statusBar(hidden: true)
+        }
         .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
             handleDropProviders(providers)
             return true
@@ -1187,6 +1206,13 @@ struct AIChatView: View {
             injectPendingTransferIfNeeded()
             isChatViewVisible = true
             refreshTitlePillSession()
+            if !isReadOnly && !didPresentAvatarPrimary {
+                didPresentAvatarPrimary = true
+                DispatchQueue.main.async {
+                    guard isChatViewVisible else { return }
+                    isAvatarPrimaryPresented = true
+                }
+            }
             // Notify workflow that THIS view is mounted + visible. If
             // the workflow is waiting for our session id, it will
             // transition to chatReady — our state observer below picks
@@ -1204,6 +1230,35 @@ struct AIChatView: View {
                   let updatedId = note.object as? String,
                   updatedId == sid else { return }
             refreshTitlePillSession()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .soulNestAvatarInput)) { note in
+            guard !isReadOnly,
+                  let type = note.userInfo?["type"] as? String else { return }
+            switch type {
+            case "send":
+                guard !vm.isProcessing,
+                      let text = note.userInfo?["text"] as? String,
+                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                vm.inputText = text
+                performSend()
+            case "mic":
+                guard !vm.isProcessing else { return }
+                vm.voiceUsedInComposition = true
+                VoiceModePreference.shared.enteredFromText = true
+                withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
+                avatarVoiceTurnActive = true
+                SoulNestAvatarPresentation.thinking()
+                // The inline panel owns permission checks and VAD setup. Let
+                // its onAppear run first, then invoke the exact same existing
+                // button action used by the normal push-to-talk control.
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 180_000_000)
+                    guard avatarVoiceTurnActive, !vm.isProcessing else { return }
+                    voiceVM.handleMainButtonTap()
+                }
+            default:
+                break
+            }
         }
         .onChange(of: shareCoordinator.bufferVersion) { newVersion in
             // Warm start: user is already in a session when share arrives
@@ -1356,6 +1411,15 @@ struct AIChatView: View {
                     }
                 }
             }
+        }
+        .onChange(of: voiceVM.state) { state in
+            guard avatarVoiceTurnActive, state == .result,
+                  !vm.isProcessing else { return }
+            let text = voiceVM.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            avatarVoiceTurnActive = false
+            vm.inputText = text
+            performSend()
         }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to

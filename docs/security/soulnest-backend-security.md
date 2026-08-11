@@ -85,7 +85,7 @@ The Avatar presentation layer is not a credential holder.
 
 ## Hermes boundary
 
-Hermes should follow the same rules when #6 lands:
+Hermes follows the same rules now that #6 uses its authenticated OpenAI-compatible API Server:
 
 - credential stored in Keychain, not preferences/WebApp assets
 - use the narrowest supported API credential/scope
@@ -122,4 +122,4 @@ Before #20 can close, verify:
 - [ ] recommended network setup is private/authenticated
 - [ ] no global WebApp/ATS security weakening was introduced
 - [ ] OpenClaw real-device connection is exercised with a non-public endpoint
-- [ ] Hermes-specific credential handling is reviewed when #6 lands
+- [x] Hermes credential handling is Keychain-backed and excluded from Web assets

@@ -17,6 +17,55 @@ final class OpenClawBackendTests: XCTestCase {
         )
     }
 
+    // MARK: - Hermes adapter (#6, #7, #21)
+
+    func testHermesProfileEndpointAndStableSessionHeaders() throws {
+        let request = AgentBackendRequest(
+            session: AgentBackendSession(openMinisSessionID: "chat-A"),
+            messages: [AgentMessage(role: .user, parts: [.text("Hello")])],
+            systemPrompt: nil, tools: [], maxTokens: 123, thinkingLevel: .none
+        )
+        let urlRequest = try HermesBackend.urlRequest(
+            endpoint: URL(string: "https://hermes.example")!, profileID: "xiaomi",
+            credential: "test-token", model: HermesBackend.defaultModel, request: request
+        )
+        XCTAssertEqual(urlRequest.url?.absoluteString, "https://hermes.example/p/xiaomi/v1/chat/completions")
+        XCTAssertEqual(urlRequest.value(forHTTPHeaderField: "Authorization"), "Bearer test-token")
+        XCTAssertEqual(urlRequest.value(forHTTPHeaderField: "X-Hermes-Session-Id"), "soulnest:chat-A")
+        XCTAssertEqual(urlRequest.value(forHTTPHeaderField: "X-Hermes-Session-Key"), "soulnest:chat-A")
+        XCTAssertEqual(HermesBackend.chatURL(endpoint: URL(string: "https://hermes.example/v1/chat/completions")!, profileID: "ignored").path, "/v1/chat/completions")
+    }
+
+    func testHermesSessionIdentitySeparatesChatsAndSurvivesRetry() throws {
+        func header(for chatID: String) throws -> String? {
+            let request = AgentBackendRequest(session: AgentBackendSession(openMinisSessionID: chatID), messages: [], systemPrompt: nil, tools: [], maxTokens: 0, thinkingLevel: .none)
+            return try HermesBackend.urlRequest(endpoint: URL(string: "https://hermes.example")!, profileID: nil, credential: "token", model: HermesBackend.defaultModel, request: request)
+                .value(forHTTPHeaderField: "X-Hermes-Session-Id")
+        }
+        XCTAssertEqual(try header(for: "A"), "soulnest:A")
+        XCTAssertEqual(try header(for: "B"), "soulnest:B")
+        XCTAssertEqual(try header(for: "A"), "soulnest:A")
+    }
+
+    func testHermesRequestUsesCurrentTurnAndNoInventedToolProtocol() {
+        let body = HermesBackend.body(for: AgentBackendRequest(
+            session: AgentBackendSession(openMinisSessionID: "chat"),
+            messages: [
+                AgentMessage(role: .user, parts: [.text("old")]),
+                AgentMessage(role: .assistant, parts: [.text("old response")]),
+                AgentMessage(role: .user, parts: [.text("new")]),
+            ],
+            systemPrompt: nil,
+            tools: [AgentToolDefinition(name: "location", description: "phone", parameters: [:], required: [])],
+            maxTokens: 0, thinkingLevel: .none
+        ), model: HermesBackend.defaultModel)
+        XCTAssertNil(body["tools"])
+        let messages = body["messages"] as? [[String: Any]]
+        XCTAssertEqual(messages?.count, 1)
+        let content = messages?.first?["content"] as? [[String: Any]]
+        XCTAssertEqual(content?.first?["text"] as? String, "new")
+    }
+
     // MARK: - Message conversion
 
     func testConvertMessagesUserText() {

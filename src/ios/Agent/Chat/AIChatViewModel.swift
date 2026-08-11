@@ -1372,9 +1372,12 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             VoiceOutputPlayer.shared.enqueue(text, sessionId: sessionId ?? "")
             return
         }
+        // Install the delegate for every System-TTS turn: besides the optional
+        // background keep-alive behavior, it is the authoritative audible
+        // playback lifecycle used by the SoulNest Avatar.
+        speechSynthesizer.delegate = speechDelegate
         if BackgroundKeepAliveManager.shared.backgroundSpeakEnabled {
             BackgroundKeepAliveManager.shared.stopSilentAudio()
-            speechSynthesizer.delegate = speechDelegate
         }
         if speechSynthesizer.isSpeaking {
             speechSynthesizer.stopSpeaking(at: .word)
@@ -1500,9 +1503,11 @@ final class AIChatViewModel: ObservableObject, SpeechControlling {
             VoiceOutputPlayer.shared.enqueue(text, sessionId: sessionId ?? "")
             return
         }
+        // See speakText(_:): this delegate also tracks the real System-TTS
+        // playback start/drain lifecycle for the Avatar presentation.
+        speechSynthesizer.delegate = speechDelegate
         if BackgroundKeepAliveManager.shared.backgroundSpeakEnabled {
             BackgroundKeepAliveManager.shared.stopSilentAudio()
-            speechSynthesizer.delegate = speechDelegate
         }
         let utterance = makeUtterance(text)
         speechSynthesizer.speak(utterance)  // queues automatically, does NOT interrupt

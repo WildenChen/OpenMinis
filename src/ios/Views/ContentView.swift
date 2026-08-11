@@ -658,16 +658,19 @@ struct ContentView: View {
                 case 3:
                     break
                 default:
-                    if !sessions.isEmpty,
-                       let latest = sessions.first,
-                       Date().timeIntervalSince(latest.updatedAt) > 15 * 60 {
-                        var tx = Transaction()
-                        tx.disablesAnimations = true
-                        withTransaction(tx) { openSession(Self.makeNewSessionId()) }
-                    } else if isWideLayout, let latest = sessions.first {
+                    // SoulNest is Avatar-first: the normal launch path always
+                    // enters a mounted chat (latest session or a fresh draft),
+                    // whose primary presentation is the Avatar shell. Users who
+                    // explicitly choose a launch-screen preference above keep
+                    // that behavior; closing the shell returns to history.
+                    if let latest = sessions.first {
                         var tx = Transaction()
                         tx.disablesAnimations = true
                         withTransaction(tx) { openSession(latest.id) }
+                    } else {
+                        var tx = Transaction()
+                        tx.disablesAnimations = true
+                        withTransaction(tx) { openSession(Self.makeNewSessionId()) }
                     }
                 }
             }
@@ -5410,4 +5413,3 @@ private struct ForceSyncToastBanner: View {
         .frame(maxWidth: 480)
     }
 }
-

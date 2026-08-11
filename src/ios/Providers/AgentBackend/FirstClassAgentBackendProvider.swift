@@ -118,10 +118,134 @@ struct OpenClawFirstClassProvider: SessionAwareAgentProvider {
     }
 }
 
+/// First-class Hermes provider.  It deliberately keeps Hermes request/session
+/// semantics in `HermesBackend` rather than adding behavior to OpenAIProvider.
+struct HermesFirstClassProvider: SessionAwareAgentProvider {
+    let instance: ProviderInstance
+    let model: LLMModel
+
+    var name: String { "Hermes" }
+    var defaultMaxTokens: Int { HermesBackend.defaultModel.maxOutputTokens ?? 16_384 }
+
+    func streamAgentMessageClamped(
+        messages: [AgentMessage], systemPrompt: String?, tools: [AgentToolDefinition],
+        maxTokens: Int, thinkingLevel: ThinkingLevel
+    ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        throw AgentBackendError.missingSessionID
+    }
+
+    func streamAgentMessageClamped(
+        sessionID: String, messages: [AgentMessage], systemPrompt: String?, tools: [AgentToolDefinition],
+        maxTokens: Int, thinkingLevel: ThinkingLevel
+    ) async throws -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        guard let endpoint = instance.effectiveCustomBaseURL.flatMap(URL.init(string:)),
+              let credential = FirstClassAgentBackendProvider.credential(for: instance), !credential.isEmpty else {
+            throw HermesFirstClassProviderError.missingCredential
+        }
+        let backend = HermesBackend(
+            endpoint: endpoint,
+            profileID: FirstClassAgentBackendProvider.targetID(for: instance),
+            credential: credential,
+            model: model
+        )
+        let request = AgentBackendRequest(
+            session: AgentBackendSession(openMinisSessionID: sessionID), messages: messages,
+            systemPrompt: systemPrompt, tools: tools, maxTokens: maxTokens, thinkingLevel: thinkingLevel
+        )
+        return HermesStreamReliability.stream(backend: backend, request: request)
+    }
+}
+
 enum OpenClawFirstClassProviderError: LocalizedError {
     case missingCredential
 
     var errorDescription: String? {
         String(localized: "OpenClaw Gateway credential is not configured on this device. Open Providers → OpenClaw and enter the Gateway credential.")
+    }
+}
+
+enum HermesFirstClassProviderError: LocalizedError {
+    case missingCredential
+
+    var errorDescription: String? {
+        String(localized: "Hermes credential is not configured. Open Providers → Hermes and enter the endpoint credential.")
+    }
+}
+
+/// Hermes retries only failures that occur before any event is delivered. The
+/// original request (and therefore X-Hermes-Session-Id) is reused verbatim;
+/// reconnecting can never manufacture a second Hermes conversation.
+enum HermesStreamReliability {
+    static func stream(
+        backend: HermesBackend,
+        request: AgentBackendRequest
+    ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
+        let retryDelays: [UInt64] = [1, 3, 5]
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                var attempt = 0
+                while !Task.isCancelled {
+                    var emittedAnyEvent = false
+                    do {
+                        let upstream = try await backend.stream(request: request)
+                        for try await event in upstream {
+                            try Task.checkCancellation()
+                            emittedAnyEvent = true
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                        return
+                    } catch is CancellationError {
+                        continuation.finish(throwing: CancellationError())
+                        return
+                    } catch {
+                        let mapped = map(error)
+                        if !emittedAnyEvent, isRetryable(mapped), attempt < retryDelays.count {
+                            let delay = retryDelays[attempt]
+                            attempt += 1
+                            do {
+                                try await Task.sleep(nanoseconds: delay * 1_000_000_000)
+                                continue
+                            } catch {
+                                continuation.finish(throwing: CancellationError())
+                                return
+                            }
+                        }
+                        continuation.finish(throwing: mapped)
+                        return
+                    }
+                }
+                continuation.finish(throwing: CancellationError())
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private static func map(_ error: Error) -> Error {
+        if let llm = error as? LLMError { return llm }
+        if let url = error as? URLError {
+            return url.code == .cancelled ? LLMError.cancelled : LLMError.networkError(underlying: url)
+        }
+        if let hermes = error as? HermesBackendError {
+            switch hermes {
+            case .http(let status, let body):
+                switch status {
+                case 401, 403:
+                    return LLMError.invalidAPIKey(detail: "Hermes authentication failed (HTTP \(status)).")
+                case 429:
+                    return LLMError.rateLimited
+                case 408, 425, 500...599:
+                    return LLMError.transientError(message: "Hermes HTTP \(status)")
+                default:
+                    let compact = body.replacingOccurrences(of: "\n", with: " ")
+                    return LLMError.providerError(message: "Hermes HTTP \(status)\(compact.isEmpty ? "" : ": \(String(compact.prefix(240)))")")
+                }
+            }
+        }
+        return LLMError.unknown(underlying: error)
+    }
+
+    private static func isRetryable(_ error: Error) -> Bool {
+        (error as? LLMError)?.isRetryable == true
     }
 }
