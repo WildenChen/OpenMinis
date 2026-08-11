@@ -193,6 +193,9 @@ final class ProviderConfigStore: ObservableObject {
         // source of truth. [T-icloud-modelgroup-member-loss]
         self.config = Self.load(from: fileURL)
         self.lastSavedSnapshot = self.config
+        if migrateLegacyOpenClawProviderIfNeeded() {
+            save()
+        }
         ensureVoiceTemplateModels()
         Self.setupDBAndMigrate(jsonURL: fileURL) { [weak self] db in
             Task { @MainActor in
@@ -268,10 +271,15 @@ final class ProviderConfigStore: ObservableObject {
                     logger.info("[CompositeKeyMigrate] init: normalizeReferences no-op (no uuid refs matched lmap; \(danglingBefore) dangling refs need a cloud entry record to normalize)")
                 }
                 logger.info("[GroupLoad] init: loaded authoritative config from V3 DB — groups=\(deduped.modelGroups.count) entries=\(deduped.modelEntries.count) groupMembers(json=\(jsonGroupMembers)→db=\(dbGroupMembers)) prunedDuplicates=\(prunedAtLoad.count)")
+                if self.migrateLegacyOpenClawProviderIfNeeded() {
+                    // The DB is authoritative here, so this must go through
+                    // save() to update both SQLite and the downgrade JSON mirror.
+                    self.save()
+                }
                 self.ensureVoiceTemplateModels()
                 self.objectWillChange.send()
                 if !prunedAtLoad.isEmpty {
-                    let snapshot = deduped
+                    let snapshot = self.config
                     let toDelete = prunedAtLoad
                     Task.detached {
                         await db.bulkReplace(from: snapshot)
@@ -614,12 +622,18 @@ final class ProviderConfigStore: ObservableObject {
             let freshMembers = fresh.modelGroups.reduce(0) { $0 + $1.memberEntryIds.count }
             config = fresh
             lastSavedSnapshot = fresh
+            if migrateLegacyOpenClawProviderIfNeeded() {
+                save()
+            }
             logger.info("[GroupLoad] reloadFromDisk: V3 DB dump — groups=\(fresh.modelGroups.count) groupMembers(\(priorMembers)→\(freshMembers))")
             objectWillChange.send()
             return
         }
         logger.info("[GroupLoad] reloadFromDisk: V2 JSON path (no DB / v3 disabled / not migrated)")
         config = Self.load(from: fileURL)
+        if migrateLegacyOpenClawProviderIfNeeded() {
+            save()
+        }
         objectWillChange.send()
     }
 
@@ -642,9 +656,57 @@ final class ProviderConfigStore: ObservableObject {
 
     var instances: [ProviderInstance] { config.instances }
 
+    /// Converts the shipped marker-based OpenClaw instance into the formal
+    /// ProviderType without changing its instance or model identifiers. This
+    /// preserves existing session bindings and the OpenClaw agent selection.
+    @discardableResult
+    private func migrateLegacyOpenClawProviderIfNeeded() -> Bool {
+        var didMutate = false
+        let legacyIndexes = config.instances.indices.filter {
+            let instance = config.instances[$0]
+            return instance.providerType == .openAI
+                && instance.effectiveCustomUserAgent == FirstClassAgentBackendProvider.legacyOpenClawMarker
+        }
+        for index in legacyIndexes {
+            let legacy = config.instances[index]
+            let transport = OpenClawBackendConfigStore.load()
+            let target = config.modelEntries.first(where: { $0.providerInstanceId == legacy.id })?.baseModel.id ?? transport.agentID
+            config.instances[index] = ProviderInstance(
+                id: legacy.id, label: legacy.label, providerType: .openClaw,
+                credentialType: .apiKey, isEnabled: legacy.isEnabled, createdAt: legacy.createdAt,
+                customBaseURL: transport.baseURL.absoluteString, appendV1Suffix: false
+            )
+            AgentBackendProviderSettings.setTargetID(target, for: legacy.id)
+            didMutate = true
+            logger.info("Migrated legacy OpenClaw provider to ProviderType.openClaw")
+        }
+
+        // Repair the short-lived first-class build that stored a real Gateway
+        // owner token in the synchronizable provider keychain. Move it back to
+        // the device-local store and leave only a non-secret marker behind.
+        for instance in config.instances where instance.providerType == .openClaw {
+            guard let syncedCredential = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id),
+                  !syncedCredential.isEmpty,
+                  syncedCredential != FirstClassAgentBackendProvider.legacyOpenClawCredentialMarker
+            else { continue }
+            guard OpenClawBackendCredentialStore.save(syncedCredential) else { continue }
+            ProviderKeychainHelper.saveAPIKey(
+                FirstClassAgentBackendProvider.legacyOpenClawCredentialMarker,
+                instanceId: instance.id
+            )
+            didMutate = true
+            logger.info("Moved OpenClaw owner credential to device-local Keychain")
+        }
+        return didMutate
+    }
+
     func addInstance(_ instance: ProviderInstance) {
         config.instances.append(instance)
-        if instance.credentialType == .oauth {
+        if FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) {
+            let entry = ModelEntry(providerInstanceId: instance.id, model: FirstClassAgentBackendProvider.seedModel(for: instance))
+            config.modelEntries.append(entry)
+            logger.info("[ModelList] addInstance (agent backend): instance=\(instance.label) seeded \(entry.baseModel.id)")
+        } else if instance.credentialType == .oauth {
             // OAuth instances: pre-populate with static built-in list, enriched with models.dev data.
             let builtIn: [LLMModel]
             let hasManualToken = ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token") != nil
@@ -812,6 +874,7 @@ final class ProviderConfigStore: ObservableObject {
     }
 
     func removeInstance(_ instanceId: String) {
+        let removedInstance = config.instances.first { $0.id == instanceId }
         // Collect entry UUIDs to remove from groups before deleting entries
         let removedEntryIds = Set(config.modelEntries.filter { $0.providerInstanceId == instanceId }.map(\.id))
         // Capture groups that go empty as a side effect of this removal so we
@@ -853,11 +916,16 @@ final class ProviderConfigStore: ObservableObject {
             Self.recordTombstone(in: &config.deletedModelGroups, ids: Array(removedGroupIds))
         }
         // Clean up credentials from Keychain
-        ProviderKeychainHelper.deleteAPIKey(instanceId: instanceId)
+        if let instance = removedInstance {
+            FirstClassAgentBackendProvider.deleteCredential(for: instance)
+        } else {
+            ProviderKeychainHelper.deleteAPIKey(instanceId: instanceId)
+        }
         ProviderKeychainHelper.deleteOAuthToken(instanceId: instanceId)
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-email")
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "oauth-gcp-project")
         ProviderKeychainHelper.deleteOAuthString(instanceId: instanceId, account: "manual-oauth-token")
+        AgentBackendProviderSettings.remove(instanceID: instanceId)
         save()
         // [T-icloud-provider-sync-consistency] Explicit V3 delete tombstones —
         // emitV3MarkDirty no longer diff-infers deletions, so the instance, its
@@ -946,7 +1014,8 @@ final class ProviderConfigStore: ObservableObject {
                 return m
             },
         ]
-        if let key = ProviderKeychainHelper.loadAPIKey(instanceId: instanceId) {
+        if instance.providerType != .openClaw,
+           let key = ProviderKeychainHelper.loadAPIKey(instanceId: instanceId) {
             dict["apiKey"] = Data(key.utf8).base64EncodedString()
         }
         if let manualToken = ProviderKeychainHelper.loadOAuthString(instanceId: instanceId, account: "manual-oauth-token") {
@@ -1061,7 +1130,17 @@ final class ProviderConfigStore: ObservableObject {
             } else {
                 apiKey = keyValue // plain text fallback
             }
-            ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: instance.id)
+            if providerType == .openClaw {
+                if apiKey != FirstClassAgentBackendProvider.legacyOpenClawCredentialMarker,
+                   OpenClawBackendCredentialStore.save(apiKey) {
+                    ProviderKeychainHelper.saveAPIKey(
+                        FirstClassAgentBackendProvider.legacyOpenClawCredentialMarker,
+                        instanceId: instance.id
+                    )
+                }
+            } else {
+                ProviderKeychainHelper.saveAPIKey(apiKey, instanceId: instance.id)
+            }
         }
 
         // Decode manual OAuth token (base64 or plain text for backward compat)
@@ -2448,6 +2527,8 @@ final class ProviderConfigStore: ObservableObject {
             let kimiBase = customBase ?? "https://api.kimi.com/coding"
             let kimiAppendV1 = customBase == nil ? true : appendV1  // default base …/coding needs /v1 appended
             return try await OpenAIModelsAPI.fetchModels(apiKey: token, baseURL: kimiBase, appendV1Suffix: kimiAppendV1, forceRefresh: forceRefresh, userAgent: nil)
+        case (.openClaw, _), (.hermes, _):
+            return instance.providerType.builtInModels
         case (.unsupported, _):
             // Synced from a newer build — can't fetch; keep whatever's stored.
             return []
@@ -2629,7 +2710,7 @@ final class ProviderConfigStore: ObservableObject {
         case .kimiCode: return "https://api.kimi.com/coding"
         case .gemini: return "https://generativelanguage.googleapis.com"
         case .openRouter: return "https://openrouter.ai/api"
-        case .antigravity: return nil // No public base URL
+        case .antigravity, .openClaw, .hermes: return nil // No public base URL
         case .unsupported: return nil // synced from newer build
         }
     }

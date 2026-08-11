@@ -30,10 +30,10 @@ struct OpenClawBackendConfig: Sendable {
     }
 }
 
-/// Reads OpenClaw transport settings. Base URL and agent ID are ordinary app
-/// configuration in UserDefaults; the Gateway bearer token is an operator
-/// credential and is read from the dedicated Keychain item
-/// (`OpenClawBackendCredentialStore`), never from UserDefaults.
+/// Legacy OpenClaw transport settings retained solely to migrate pre-Issue-42
+/// installations. New provider instances store their endpoint in
+/// `ProviderInstance` and their credential in the ordinary per-instance
+/// Keychain item.
 ///
 /// Keys:
 ///   - `soulnest.openclaw.baseURL`      default `http://127.0.0.1:18789`

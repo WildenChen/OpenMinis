@@ -18,11 +18,6 @@ extension AIChatViewModel {
     /// method, since the resolution depends only on global state
     /// (ProviderConfigStore + LLMProviderFactory).
     static func makeAgentProvider(for entry: ModelEntry) async -> AgentProvider {
-        // External agent backend entry → bridge to the backend provider.
-        if AgentBackendActiveState.isBackendEntry(entry),
-           let backend = AgentBackendActiveState.provider() {
-            return backend
-        }
         let store = ProviderConfigStore.shared
         guard let instance = store.instance(for: entry.providerInstanceId) else {
             logger.error("No ProviderInstance found for entry \(entry.id)")
@@ -45,6 +40,16 @@ extension AIChatViewModel {
             return OpenAIAgentProvider(provider: LLMProviderFactory.makeXAIProvider(instance: instance, model: entry.model))
         case .kimiCode:
             return OpenAIAgentProvider(provider: LLMProviderFactory.makeKimiProvider(instance: instance, model: entry.model))
+        case .openClaw:
+            return OpenClawFirstClassProvider(instance: instance, model: entry.model)
+        case .hermes:
+            let endpoint = URL(string: instance.effectiveCustomBaseURL ?? "http://127.0.0.1:8080")!
+            return AgentBackendProvider(backend: HermesBackend(
+                endpoint: endpoint,
+                profileID: FirstClassAgentBackendProvider.targetID(for: instance),
+                credential: ProviderKeychainHelper.loadAPIKey(instanceId: instance.id),
+                model: entry.model
+            ))
         case .unsupported:
             logger.error("\(instance.providerType) has no agent provider; returning placeholder")
             return AnthropicAgentProvider(provider: AnthropicProvider(apiKey: "", model: entry.model))
@@ -242,7 +247,7 @@ extension AIChatViewModel {
                 provider.appendV1Suffix = kimiAppendV1
                 return provider
             }
-        case .unsupported:
+        case .openClaw, .hermes, .unsupported:
             throw LLMProviderError.noCredentials
         }
     }
@@ -268,14 +273,6 @@ extension AIChatViewModel {
     private static let resolveNilSentinel = "\u{0}nil"
 
     func resolveCurrentEntry() -> ModelEntry? {
-        // External agent backend active → it is the only brain. Short-circuit
-        // before the raw-model memo cache, which is keyed on provider bindings
-        // that don't exist for a backend session (the synthetic entry id also
-        // never resolves through `store.entry(for:)`, so a stale cached
-        // raw-model id cannot win after a backend (de)activation).
-        if let backendEntry = AgentBackendActiveState.modelEntry() {
-            return backendEntry
-        }
         let store = ProviderConfigStore.shared
         let key = ResolveCacheKey(
             sessionId: sessionId ?? "",

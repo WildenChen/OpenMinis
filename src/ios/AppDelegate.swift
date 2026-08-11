@@ -45,12 +45,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         Task { @MainActor in
             QuickActionRouter.registerShortcutItems()
         }
-        // Wire the app-only OpenClaw native-provider marker into the backend
-        // abstraction so AgentBackendActiveState can consult ProviderConfigStore
-        // without depending on app-only types (keeps the unit-test target clean).
-        Task { @MainActor in
-            OpenClawNativeProvider.install()
-        }
         logger.info("didFinishLaunching (scene-based; shortcut routing happens in SceneDelegate)")
         // In a scene-based SwiftUI app, `launchOptions[.shortcutItem]`
         // is NOT populated for cold-launch shortcuts — the item is

@@ -160,6 +160,7 @@ struct AddProviderView: View {
     @State private var appendV1SuffixInput = true
     @State private var useResponsesAPI = false
     @State private var manualOAuthTokenInput = ""
+    @State private var agentIdentifierInput = ""
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var pendingInstanceId = UUID().uuidString
@@ -345,31 +346,6 @@ struct AddProviderView: View {
                 }
             }
 
-            NavigationLink {
-                ExternalAgentBackendSettingsView()
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.crop.circle.badge.checkmark")
-                        .frame(width: 32, height: 32)
-                        .background(Color.purple.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("OpenClaw")
-                            .font(.body.weight(.medium))
-                            .foregroundStyle(Color(UIColor.label))
-                        Text("Gateway-hosted agent (Yujie). OpenMinis still executes device tools on-device.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
         } header: {
             Text("Choose Provider")
         } footer: {
@@ -516,7 +492,16 @@ struct AddProviderView: View {
 
     // MARK: - Step 3: Configure
 
+    @ViewBuilder
     private var configureSection: some View {
+        if let selectedType, FirstClassAgentBackendProvider.isAgentBackend(selectedType) {
+            agentBackendConfigureSection(type: selectedType)
+        } else {
+            standardConfigureSection
+        }
+    }
+
+    private var standardConfigureSection: some View {
         Group {
             Section("Label") {
                 TextField("Provider label", text: $labelInput)
@@ -541,6 +526,44 @@ struct AddProviderView: View {
                         .foregroundStyle(.red)
                         .textSelection(.enabled)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func agentBackendConfigureSection(type: ProviderType) -> some View {
+        Group {
+            Section("Label") {
+                TextField("Provider label", text: $labelInput)
+                    .onChange(of: labelInput) { _ in labelEdited = true }
+            }
+            Section(type == .openClaw ? "Gateway" : "Hermes") {
+                TextField(type == .openClaw ? "Gateway URL" : "Hermes Endpoint", text: $customBaseURLInput)
+                    .font(.system(.body, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .keyboardType(.URL)
+                SecureField(type == .openClaw ? "Gateway Token" : "Token / Credential", text: $apiKeyInput)
+                    .font(.system(.body, design: .monospaced))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            }
+            Section {
+                TextField("Agent / Profile ID", text: $agentIdentifierInput)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+            } header: {
+                Text("Agent / Profile")
+            } footer: {
+                Text(type == .openClaw
+                     ? "OpenMinis keeps device tools on this phone; OpenClaw owns its host tools and agent session."
+                     : "This identifier is retained with the Provider instance for the Hermes adapter.")
+            }
+            Section {
+                Button { saveApiKeyInstance() } label: {
+                    HStack { Spacer(); Text("Add Provider").font(.body.weight(.semibold)); Spacer() }
+                }
+                .disabled(customBaseURLInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
             }
         }
     }
@@ -751,6 +774,8 @@ struct AddProviderView: View {
         case .openAIResponses: return "https://api.openai.com"
         case .xAI: return "https://api.x.ai/v1"
         case .kimiCode: return "https://api.kimi.com/coding"
+        case .openClaw: return "http://127.0.0.1:18789"
+        case .hermes: return "http://127.0.0.1:8080"
         default: return "https://api.example.com"
         }
     }
@@ -774,9 +799,16 @@ struct AddProviderView: View {
             providerType: effectiveType,
             credentialType: .apiKey,
             customBaseURL: base,
-            appendV1Suffix: appendV1SuffixInput
+            appendV1Suffix: FirstClassAgentBackendProvider.isAgentBackend(effectiveType) ? false : appendV1SuffixInput
         )
-        ProviderKeychainHelper.saveAPIKey(trimmedKey, instanceId: instance.id)
+        guard FirstClassAgentBackendProvider.saveCredential(trimmedKey, for: instance) else {
+            errorMessage = String(localized: "Could not securely save the provider credential.")
+            isSaving = false
+            return
+        }
+        if FirstClassAgentBackendProvider.isAgentBackend(effectiveType) {
+            AgentBackendProviderSettings.setTargetID(agentIdentifierInput, for: instance.id)
+        }
         store.addInstance(instance)
         isSaving = false
         dismiss()
@@ -830,6 +862,7 @@ struct AddProviderView: View {
             case .openAIResponses: break // API key only, no OAuth
             case .xAI: try await XAIOAuthManager.shared.login(instanceId: pendingInstanceId)
             case .kimiCode: break // device-code flow runs in KimiDeviceLoginSheet, not here
+            case .openClaw, .hermes: break // API-key configuration only
             case .unsupported: break // free / unsupported — no OAuth
             }
             oauthAuthTime = Date()
@@ -861,6 +894,8 @@ struct AddProviderView: View {
             token = ProviderKeychainHelper.loadOAuthToken(instanceId: pendingInstanceId, as: XAITokenStorage.self)?.accessToken
         case .kimiCode:
             token = ProviderKeychainHelper.loadOAuthToken(instanceId: pendingInstanceId, as: KimiTokenStorage.self)?.accessToken
+        case .openClaw, .hermes:
+            token = nil
         case .unsupported:
             token = nil // free / unsupported — no token
         }
@@ -939,6 +974,7 @@ struct AddProviderView: View {
         case .openAIResponses: return String(localized: "Sign In") // Not reachable — API key only
         case .xAI: return String(localized: "Sign in with xAI")
         case .kimiCode: return String(localized: "Sign in with Kimi Code")
+        case .openClaw, .hermes: return String(localized: "Configure Credential")
         case .unsupported: return String(localized: "Sign In")
         }
     }
@@ -954,6 +990,8 @@ struct AddProviderView: View {
         case .openAIResponses: return "sk-..."
         case .xAI: return "xai-..."
         case .kimiCode: return "" // OAuth only
+        case .openClaw: return "Gateway Token"
+        case .hermes: return "Token / Credential"
         case .unsupported: return ""
         }
     }
@@ -968,6 +1006,8 @@ struct AddProviderView: View {
         case .openAIResponses: return "Responses API"
         case .xAI: return "xAI (Grok)"
         case .kimiCode: return "Kimi Code"
+        case .openClaw: return "OpenClaw"
+        case .hermes: return "Hermes"
         case .unsupported: return String(localized: "Unsupported")
         }
     }
@@ -984,7 +1024,7 @@ struct AddProviderView: View {
         switch type {
         case .antigravity:
             return [.oauth]
-        case .openAIResponses, .gemini:
+        case .openAIResponses, .gemini, .openClaw, .hermes:
             return [.apiKey]
         default:
             return [.apiKey, .oauth]
@@ -997,6 +1037,10 @@ struct AddProviderView: View {
             return String(localized: "Supports OpenAI official API and third-party services like OpenRouter, MiniMax, etc.")
         case (.openAIResponses, .apiKey):
             return String(localized: "Use an API key for a Responses API endpoint")
+        case (.openClaw, .apiKey):
+            return String(localized: "Configure an OpenClaw Gateway token")
+        case (.hermes, .apiKey):
+            return String(localized: "Configure a Hermes endpoint credential")
         case (_, .apiKey):
             return String(localized: "Use an API key from your \(type.displayName) account")
         case (.anthropic, .oauth):
@@ -1017,6 +1061,8 @@ struct AddProviderView: View {
             return String(localized: "Sign in with your Kimi Code / Coding Plan subscription.")
         case (.kimiCode, .apiKey):
             return String(localized: "Use a Kimi Coding API key.")
+        case (.openClaw, .oauth), (.hermes, .oauth):
+            return String(localized: "This provider uses a token configured in the provider form.")
         case (.unsupported, _):
             return String(localized: "This provider isn't supported in this app version.")
         }
@@ -1049,6 +1095,12 @@ struct AddProviderView: View {
         case .kimiCode:
             Image(systemName: "moon.stars")
                 .foregroundStyle(.indigo)
+        case .openClaw:
+            Image(systemName: "person.crop.circle.badge.checkmark")
+                .foregroundStyle(.purple)
+        case .hermes:
+            Image(systemName: "sparkles.rectangle.stack")
+                .foregroundStyle(.teal)
         case .unsupported:
             Image(systemName: "questionmark.circle")
                 .foregroundStyle(.gray)
@@ -1065,8 +1117,9 @@ struct AddProviderView: View {
         case .openAIResponses: return .mint
         case .xAI: return .gray
         case .kimiCode: return .indigo
+        case .openClaw: return .purple
+        case .hermes: return .teal
         case .unsupported: return .gray
         }
     }
 }
-

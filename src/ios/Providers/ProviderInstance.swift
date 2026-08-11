@@ -146,7 +146,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
         switch providerType {
         case .openAI, .openAIResponses, .openRouter, .xAI, .kimiCode, .anthropic:
             return true
-        case .gemini, .antigravity, .unsupported:
+        case .gemini, .antigravity, .openClaw, .hermes, .unsupported:
             return false
         }
     }
@@ -253,6 +253,9 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
     /// The uncached credential probe. Kept separate so the cache wraps it and
     /// tests / diagnostics can force a fresh read.
     func computeHasAnyCredential() -> Bool {
+        if providerType == .openClaw {
+            return OpenClawBackendCredentialStore.isConfigured
+        }
         // API-key path is identical across providers — query first.
         if ProviderKeychainHelper.loadAPIKey(instanceId: id, caller: "hasAnyCredential")?.isEmpty == false {
             return true
@@ -288,7 +291,7 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
             return ProviderKeychainHelper.loadOAuthToken(
                 instanceId: id, as: KimiTokenStorage.self, caller: "hasAnyCredential"
             ) != nil
-        case .antigravity, .openRouter, .unsupported:
+        case .antigravity, .openRouter, .openClaw, .hermes, .unsupported:
             // unsupported = synced from a newer build; no usable credential here.
             // antigravity stores its token via AntigravityOAuthManager (no
             // standalone Codable used by the diagnostic); OpenRouter is

@@ -19,6 +19,11 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
     /// OpenAI-compatible coding upstream — flows through OpenAIProvider with
     /// custom base URL + OAuth bearer, like xAI. See the Kimi Code OAuth design notes.
     case kimiCode
+    /// OpenClaw Gateway-backed agent runtime. Device tools remain owned by Minis.
+    case openClaw
+    /// Hermes agent runtime. The provider configuration is first-class even when
+    /// a particular Hermes transport deployment is not yet available.
+    case hermes
     /// Sentinel for a provider type this app build doesn't recognize — e.g. a
     /// NEWER build synced an instance whose `provider_type` string isn't a known
     /// case here. We DECODE to this instead of throwing/dropping, so the instance
@@ -43,6 +48,8 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         case .openAIResponses: return "Responses API (v3)"
         case .xAI: return "xAI (Grok)"
         case .kimiCode: return "Kimi Code"
+        case .openClaw: return "OpenClaw"
+        case .hermes: return "Hermes"
         case .unsupported: return "Unsupported"
         }
     }
@@ -58,6 +65,8 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         case .openAIResponses: return LLMModel.allOpenAI
         case .xAI: return XAIModelsAPI.allModels
         case .kimiCode: return KimiModelsAPI.allModels
+        case .openClaw: return [OpenClawBackend.defaultModel]
+        case .hermes: return [HermesBackend.defaultModel]
         case .unsupported: return []
         }
     }
@@ -82,6 +91,10 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
             return String(localized: "Sign in with your Kimi Code / Coding Plan subscription")
         case .antigravity:
             return String(localized: "\(builtInModels.count) built-in models")
+        case .openClaw:
+            return String(localized: "Gateway-hosted agent with on-device tools")
+        case .hermes:
+            return String(localized: "Hermes agent endpoint with on-device tools")
         case .unsupported:
             return String(localized: "\(builtInModels.count) built-in models")
         }
@@ -98,6 +111,7 @@ enum ProviderType: String, Codable, CaseIterable, Hashable, Sendable {
         case .openAIResponses: return .vision
         case .xAI: return .vision
         case .kimiCode: return .vision
+        case .openClaw, .hermes: return .fullMultimodal
         case .unsupported: return .vision
         }
     }

@@ -41,12 +41,13 @@ enum DebugRPCProvider {
             case .openAIResponses: supportedCreds = ["apiKey"]
             case .xAI: supportedCreds = ["apiKey", "oauth"]
             case .kimiCode: supportedCreds = ["oauth"]
+            case .openClaw, .hermes: supportedCreds = ["apiKey"]
             case .unsupported: supportedCreds = []
             }
             let customBaseSupported: Bool
             switch type {
             case .openAI, .openRouter, .openAIResponses, .gemini, .xAI, .kimiCode: customBaseSupported = true
-            case .anthropic, .antigravity, .unsupported: customBaseSupported = false
+            case .anthropic, .antigravity, .openClaw, .hermes, .unsupported: customBaseSupported = false
             }
             return [
                 "id": type.rawValue,
@@ -101,7 +102,9 @@ enum DebugRPCProvider {
 
         // Persist credential before adding instance — if Keychain write fails we abort.
         if credentialType == .apiKey, let key = apiKey {
-            ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id)
+            guard FirstClassAgentBackendProvider.saveCredential(key, for: instance) else {
+                throw DebugRPCErr(-32000, "Could not securely save provider credential")
+            }
         }
         if let token = oauthToken, !token.isEmpty {
             ProviderKeychainHelper.saveOAuthString(token, instanceId: instance.id, account: "manual-oauth-token")
@@ -148,9 +151,11 @@ enum DebugRPCProvider {
         store.updateInstance(instance)
         if let key = params["apiKey"] as? String {
             if key.isEmpty {
-                ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
+                FirstClassAgentBackendProvider.deleteCredential(for: instance)
             } else {
-                ProviderKeychainHelper.saveAPIKey(key, instanceId: instance.id)
+                guard FirstClassAgentBackendProvider.saveCredential(key, for: instance) else {
+                    throw DebugRPCErr(-32000, "Could not securely save provider credential")
+                }
             }
         }
         if let token = params["oauthToken"] as? String {
@@ -181,7 +186,6 @@ enum DebugRPCProvider {
             case .group: return false
             }
         }.count
-        ProviderKeychainHelper.deleteAPIKey(instanceId: id)
         ProviderKeychainHelper.deleteOAuthString(instanceId: id, account: "manual-oauth-token")
         store.removeInstance(id)
         return [
@@ -648,7 +652,7 @@ enum DebugRPCProvider {
         dict["customBaseURL"] = instance.customBaseURL ?? NSNull()
         let hasKey: Bool = {
             if instance.credentialType == .apiKey {
-                return ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)?.isEmpty == false
+                return FirstClassAgentBackendProvider.credential(for: instance)?.isEmpty == false
             } else {
                 return ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token")?.isEmpty == false
             }

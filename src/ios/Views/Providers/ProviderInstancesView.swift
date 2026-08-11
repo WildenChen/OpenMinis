@@ -14,12 +14,11 @@ struct ProviderInstancesView: View {
 
     var body: some View {
         List {
-            // [T-mimo-shadow-voice] Every normal instance appears under its
-            // providerType section. OpenClaw has its own visible provider name
-            // while retaining the existing internal OpenAI compatibility slot.
+            // Every configured instance is rendered under its first-class
+            // providerType section, including external agent backends.
             ForEach(ProviderType.allCases, id: \.self) { type in
                 let instancesOfType = store.instances.filter {
-                    $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
+                    $0.providerType == type
                 }
                 if !instancesOfType.isEmpty {
                     Section(type.displayName) {
@@ -32,18 +31,6 @@ struct ProviderInstancesView: View {
                         }
                         .onMove { source, destination in
                             moveInstances(in: type, from: source, to: destination)
-                        }
-                    }
-                }
-            }
-            let openClawInstances = store.instances.filter(OpenClawNativeProvider.isInstance)
-            if !openClawInstances.isEmpty {
-                Section("OpenClaw") {
-                    ForEach(openClawInstances) { _ in
-                        NavigationLink {
-                            ExternalAgentBackendSettingsView()
-                        } label: {
-                            OpenClawProviderRow()
                         }
                     }
                 }
@@ -194,12 +181,7 @@ struct ProviderInstancesView: View {
     // through to SessionModelPicker.
     private func moveInstances(in type: ProviderType, from source: IndexSet, to destination: Int) {
         let all = store.instances
-        // Match the section's exact filter, including the internal OpenClaw
-        // compatibility marker, so section-relative indices never address an
-        // OpenClaw row that is rendered separately above.
-        let isSectionMember: (ProviderInstance) -> Bool = {
-            $0.providerType == type && !OpenClawNativeProvider.isInstance($0)
-        }
+        let isSectionMember: (ProviderInstance) -> Bool = { $0.providerType == type }
         let sectionIds = all.filter(isSectionMember).map(\.id)
         var reorderedSectionIds = sectionIds
         reorderedSectionIds.move(fromOffsets: source, toOffset: destination)
@@ -223,7 +205,7 @@ private struct InstanceRow: View {
     private var isConfigured: Bool {
         switch instance.credentialType {
         case .apiKey:
-            return ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) != nil
+            return FirstClassAgentBackendProvider.credential(for: instance) != nil
         case .oauth:
             return oauthIsAuthenticated
         }
@@ -243,6 +225,7 @@ private struct InstanceRow: View {
         case .openAIResponses: return false // API key only
         case .xAI: return XAIOAuthManager.shared.isAuthenticated(instanceId: instance.id)
         case .kimiCode: return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
+        case .openClaw, .hermes: return false
         case .unsupported: return false // synced from newer build
         }
     }
@@ -250,7 +233,7 @@ private struct InstanceRow: View {
     private var credentialSummary: String {
         switch instance.credentialType {
         case .apiKey:
-            if let key = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) {
+            if let key = FirstClassAgentBackendProvider.credential(for: instance) {
                 return maskKey(key)
             }
             return String(localized: "No API key")
@@ -343,55 +326,5 @@ private struct ShadowVoiceRow: View {
         if asr > 0 { parts.append(String(localized: "\(asr) speech-to-text", comment: "ASR model count")) }
         if tts > 0 { parts.append(String(localized: "\(tts) text-to-speech", comment: "TTS model count")) }
         return parts.joined(separator: " · ")
-    }
-}
-
-// MARK: - OpenClaw Provider Row
-
-/// Top-level OpenClaw provider status. The persisted ProviderInstance is a
-/// normal OpenMinis provider; the real Gateway credential stays in its dedicated
-/// device-local Keychain store and is intentionally not rendered.
-private struct OpenClawProviderRow: View {
-    @ObservedObject private var store = ProviderConfigStore.shared
-
-    private var instance: ProviderInstance? {
-        store.instances.first(where: OpenClawNativeProvider.isInstance)
-    }
-
-    private var agentCount: Int {
-        guard let instance else { return 0 }
-        return store.visibleEntries(for: instance.id).count
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(instance?.isEnabled == true && OpenClawBackendCredentialStore.isConfigured
-                      ? Color.green : Color(UIColor.quaternaryLabel))
-                .frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("OpenClaw")
-                    .font(.body.weight(.medium))
-                if instance == nil {
-                    Text("Add Provider")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    let credential = OpenClawBackendCredentialStore.isConfigured
-                        ? String(localized: "Credential configured")
-                        : String(localized: "Credential required on this device")
-                    Text("\(agentCount) agent(s) · \(credential)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            Spacer()
-            if let instance, !instance.isEnabled {
-                Text("Disabled")
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.vertical, 2)
     }
 }

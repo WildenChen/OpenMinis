@@ -20,6 +20,7 @@ struct ProviderInstanceDetailView: View {
     @State private var oauthRefreshTrigger = false
     @State private var editingCustomBaseURL = ""
     @State private var editingCustomUserAgent = ""
+    @State private var editingAgentTargetID = ""
     @State private var showManualTokenInput = false
     @State private var manualTokenInputText = ""
     @State private var editingModelEntry: ModelEntry?
@@ -147,13 +148,32 @@ struct ProviderInstanceDetailView: View {
             } header: {
                 Text("Credential")
             } footer: {
-                Text(instance.credentialType == .apiKey
-                     ? "API key is stored securely in the iOS Keychain."
-                     : "OAuth tokens are stored per-instance in the iOS Keychain.")
+                if instance.providerType == .openClaw {
+                    Text("Gateway token stays in this device's non-synchronizable Keychain storage.")
+                } else {
+                    Text(instance.credentialType == .apiKey
+                         ? "API key is stored securely in the iOS Keychain."
+                         : "OAuth tokens are stored per-instance in the iOS Keychain.")
+                }
             }
 
             // MARK: Custom Base URL
             customBaseURLSection(instance)
+
+            if FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) {
+                Section {
+                    TextField("Agent / Profile ID", text: $editingAgentTargetID)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .onAppear { editingAgentTargetID = FirstClassAgentBackendProvider.targetID(for: instance) ?? "" }
+                        .onSubmit { saveAgentTargetID(instance) }
+                        .onChange(of: editingAgentTargetID) { _ in saveAgentTargetID(instance) }
+                } header: {
+                    Text("Agent / Profile")
+                } footer: {
+                    Text("Changing this value applies to new turns while preserving the OpenMinis chat session mapping.")
+                }
+            }
 
             // [T-mimo-shadow-voice] These LLM-config fields are gated by their own
             // providerType/capability checks (supportsCustomUserAgent, API-format
@@ -229,7 +249,7 @@ struct ProviderInstanceDetailView: View {
                 Toggle("Enabled", isOn: Binding(
                     get: { instance.isEnabled },
                     set: { newValue in
-                        let hasApiKey = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id) != nil
+                        let hasApiKey = FirstClassAgentBackendProvider.credential(for: instance) != nil
                         let hasOAuth = ProviderKeychainHelper.loadOAuthString(instanceId: instance.id, account: "manual-oauth-token") != nil
                             || (instance.providerType == .anthropic && ClaudeOAuthManager.shared.isAuthenticated(instanceId: instance.id))
                         AppLogger(category: "Provider").info("toggleEnabled instanceId=\(instance.id.prefix(8)) type=\(instance.providerType.rawValue) old=\(instance.isEnabled) new=\(newValue) hasApiKey=\(hasApiKey) hasOAuth=\(hasOAuth)")
@@ -368,7 +388,7 @@ struct ProviderInstanceDetailView: View {
 
     @ViewBuilder
     private func apiKeyCredentialView(_ instance: ProviderInstance) -> some View {
-        let rawKey = ProviderKeychainHelper.loadAPIKey(instanceId: instance.id)
+        let rawKey = FirstClassAgentBackendProvider.credential(for: instance)
 
         HStack {
             // Always use TextField to keep the normal keyboard (SecureField
@@ -396,10 +416,10 @@ struct ProviderInstanceDetailView: View {
                 let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
                 if trimmed.isEmpty {
                     AppLogger(category: "Provider").warning("apiKeyTextField onChange→DELETE instanceId=\(instance.id.prefix(8)) prevRawKeyHit=\(rawKey != nil) prevRawKeyLen=\(rawKey?.count ?? 0) newLen=\(newValue.count)")
-                    ProviderKeychainHelper.deleteAPIKey(instanceId: instance.id)
+                    FirstClassAgentBackendProvider.deleteCredential(for: instance)
                 } else {
                     AppLogger(category: "Provider").info("apiKeyTextField onChange→SAVE instanceId=\(instance.id.prefix(8)) newLen=\(trimmed.count)")
-                    ProviderKeychainHelper.saveAPIKey(trimmed, instanceId: instance.id)
+                    _ = FirstClassAgentBackendProvider.saveCredential(trimmed, for: instance)
                 }
             }
 
@@ -493,6 +513,8 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return "https://api.openai.com/v1"
         case .xAI: return "https://api.x.ai/v1"
         case .kimiCode: return "https://api.kimi.com/coding"
+        case .openClaw: return "http://127.0.0.1:18789"
+        case .hermes: return "http://127.0.0.1:8080"
         case .unsupported: return "—"
         }
     }
@@ -860,6 +882,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return false // API key only
         case .xAI: return XAIOAuthManager.shared.isAuthenticated(instanceId: instance.id)
         case .kimiCode: return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
+        case .openClaw, .hermes: return false
         case .unsupported: return false // synced from newer build
         }
     }
@@ -921,6 +944,8 @@ struct ProviderInstanceDetailView: View {
         case .kimiCode:
             return KimiOAuthManager.shared.isAuthenticated(instanceId: instance.id)
                 ? String(localized: "Authenticated") : String(localized: "Not authenticated")
+        case .openClaw, .hermes:
+            return String(localized: "Not applicable")
         case .unsupported:
             return String(localized: "Unsupported in this app version")
         }
@@ -936,6 +961,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: return String(localized: "Sign In")
         case .xAI: return String(localized: "Sign in with xAI")
         case .kimiCode: return String(localized: "Sign in with Kimi Code")
+        case .openClaw, .hermes: return String(localized: "Configure Credential")
         case .unsupported: return String(localized: "Sign In")
         }
     }
@@ -951,6 +977,7 @@ struct ProviderInstanceDetailView: View {
             case .openAIResponses: break
             case .xAI: try await XAIOAuthManager.shared.login(instanceId: instance.id)
             case .kimiCode: break // device-code flow runs in KimiDeviceLoginSheet
+            case .openClaw, .hermes: break
             case .unsupported: break
             }
         } catch {
@@ -970,6 +997,7 @@ struct ProviderInstanceDetailView: View {
         case .openAIResponses: break // API key only
         case .xAI: XAIOAuthManager.shared.logout(instanceId: instance.id)
         case .kimiCode: KimiOAuthManager.shared.logout(instanceId: instance.id)
+        case .openClaw, .hermes: break
         case .unsupported: break
         }
     }
@@ -993,6 +1021,8 @@ struct ProviderInstanceDetailView: View {
             token = try? await XAIOAuthManager.shared.validAccessToken(instanceId: instance.id)
         case .kimiCode:
             token = try? await KimiOAuthManager.shared.validAccessToken(instanceId: instance.id)
+        case .openClaw, .hermes:
+            token = nil
         case .unsupported:
             token = nil
         }
@@ -1012,8 +1042,17 @@ struct ProviderInstanceDetailView: View {
         case .antigravity: return "API Key..."
         case .openRouter: return "sk-or-..."
         case .openAIResponses: return "sk-..."
+        case .openClaw: return "Gateway Token"
+        case .hermes: return "Token / Credential"
         case .unsupported: return ""
         }
+    }
+
+    private func saveAgentTargetID(_ instance: ProviderInstance) {
+        guard FirstClassAgentBackendProvider.isAgentBackend(instance.providerType) else { return }
+        let trimmed = editingAgentTargetID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != (FirstClassAgentBackendProvider.targetID(for: instance) ?? "") else { return }
+        AgentBackendProviderSettings.setTargetID(trimmed, for: instance.id)
     }
 
     private func saveLabel(_ instance: ProviderInstance) {
@@ -1630,4 +1669,3 @@ private struct ProviderShareSheet: UIViewControllerRepresentable {
     }
     func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
-
