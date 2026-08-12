@@ -4,6 +4,34 @@
     "" : {
 
     },
+    "Avatar Outfit Casual" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Casual" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "休闲" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "休閒" } }
+      }
+    },
+    "Avatar Outfit Office" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Office" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上班" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上班" } }
+      }
+    },
+    "Avatar Outfit Pajamas" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pajamas" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "睡衣" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "睡衣" } }
+      }
+    },
+    "Avatar Outfit Shorts" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shorts" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "短裤" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "短褲" } }
+      }
+    },
     "—" : {
 
     },

@@ -621,7 +621,6 @@ struct AIChatView: View {
                     }
                 }
             )
-                .ignoresSafeArea()
                 .statusBar(hidden: true)
         }
         .onDrop(of: [.image, .movie, .fileURL, .data], isTargeted: $isDropTargeted) { providers in
@@ -1226,7 +1225,7 @@ struct AIChatView: View {
             injectPendingTransferIfNeeded()
             isChatViewVisible = true
             refreshTitlePillSession()
-            if !isReadOnly && !didPresentAvatarPrimary {
+            if !isReadOnly && NativeAvatarPreferences.shared.autoOpen && !didPresentAvatarPrimary {
                 didPresentAvatarPrimary = true
                 DispatchQueue.main.async {
                     guard isChatViewVisible else { return }

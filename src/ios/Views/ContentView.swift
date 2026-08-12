@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 private let shareLog = AppLogger(category: "Share")
 private let draftLog = AppLogger(category: "DraftSession")
@@ -4738,6 +4739,93 @@ private struct AppearanceSettingsView: View {
     }
 }
 
+private struct AvatarSettingsView: View {
+    @ObservedObject private var preferences = NativeAvatarPreferences.shared
+    @State private var selectedOutfit = NativeAvatarOutfit.casual.rawValue
+    @State private var importState: String?
+    @State private var importError: String?
+    @State private var customOutfitName = ""
+    @State private var showCustomOutfitPrompt = false
+    private let states = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Open Avatar when entering a conversation", isOn: $preferences.autoOpen)
+            } header: {
+                Text("Conversation")
+            } footer: {
+                Text("When off, conversations open in the standard chat view. Avatar can still be opened from the chat menu.")
+            }
+
+            Section {
+                ForEach(preferences.outfits, id: \.self) { outfit in
+                    Toggle(preferences.displayName(for: outfit), isOn: outfitBinding(outfit))
+                    .disabled(outfit == NativeAvatarOutfit.casual.rawValue)
+                }
+                Button("Add Custom Outfit") { showCustomOutfitPrompt = true }
+            } header: {
+                Text("Outfits")
+            } footer: {
+                Text("Built-in IDs remain unchanged. Custom outfit videos are stored locally and are never added to Git.")
+            }
+
+            Section {
+                Picker("Outfit", selection: $selectedOutfit) {
+                    ForEach(preferences.outfits, id: \.self) { Text(preferences.displayName(for: $0)).tag($0) }
+                }
+                ForEach(states, id: \.self) { state in
+                    Button {
+                        importState = state
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(state)
+                                Text(preferences.mappingURL(outfit: selectedOutfit, state: state)?.lastPathComponent ?? "Bundled fallback")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                    }
+                }
+            } header: {
+                Text("Video Mapping")
+            } footer: {
+                Text("Choose a local video to replace a state. Imports are validated for readable, playable video before becoming active; missing optional states keep the native fallback.")
+            }
+        }
+        .navigationTitle("Avatar")
+        .navigationBarTitleDisplayMode(.inline)
+        .alert("Add Custom Outfit", isPresented: $showCustomOutfitPrompt) {
+            TextField("Outfit name", text: $customOutfitName)
+            Button("Add") { _ = preferences.addCustomOutfit(named: customOutfitName); customOutfitName = "" }
+            Button("Cancel", role: .cancel) { customOutfitName = "" }
+        } message: {
+            Text("Add a local outfit category, then import a video for each state you need.")
+        }
+        .alert("Avatar Video Import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+            Button("OK", role: .cancel) { importError = nil }
+        } message: { Text(importError ?? "") }
+        .fileImporter(isPresented: Binding(get: { importState != nil }, set: { if !$0 { importState = nil } }), allowedContentTypes: [.movie]) { result in
+            guard let state = importState else { return }
+            importState = nil
+            switch result {
+            case .success(let url):
+                Task { @MainActor in
+                    do { try await preferences.importVideo(from: url, outfit: selectedOutfit, state: state) }
+                    catch { importError = error.localizedDescription }
+                }
+            case .failure(let error): importError = error.localizedDescription
+            }
+        }
+    }
+
+    private func outfitBinding(_ outfit: String) -> Binding<Bool> {
+        Binding(get: { preferences.isEnabled(outfit) }, set: { preferences.setEnabled($0, outfit: outfit) })
+    }
+}
+
 /// Disables the navigation controller's interactive pop gesture on the hosting page
 /// to prevent conflict with horizontal Slider drag.
 private struct InteractivePopGestureDisabler: UIViewRepresentable {
@@ -4846,6 +4934,11 @@ private struct SettingsSheet: View {
                                 .frame(width: 21, height: 21)
                                 .background(.indigo, in: Circle())
                         }
+                    }
+                    NavigationLink {
+                        AvatarSettingsView()
+                    } label: {
+                        Label("Avatar", systemImage: "person.crop.rectangle")
                     }
                 }
 

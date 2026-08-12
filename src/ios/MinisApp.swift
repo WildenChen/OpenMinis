@@ -233,7 +233,6 @@ struct MinisApp: App {
                 // treatment as WebApp covers.
                 .fullScreenCover(isPresented: $isAvatarShellPresented) {
                     NativeAvatarView(onClose: { isAvatarShellPresented = false }, onSend: { _ in }, onMic: {})
-                        .ignoresSafeArea()
                         .statusBar(hidden: true)
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .openWebAppDeepLink)) { note in
