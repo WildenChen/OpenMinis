@@ -8,18 +8,38 @@ extension Notification.Name {
 
 @MainActor
 enum SoulNestAvatarPresentation {
-    static func thinking() { post(action: "state", value: "thinking") }
+    private static let textOnlyIdleDelay: TimeInterval = 1.5
+    private static var pendingTextOnlyIdle: DispatchWorkItem?
+
+    static func thinking() {
+        cancelPendingTextOnlyIdle()
+        post(action: "state", value: "thinking")
+    }
     static func talking(subtitle: String? = nil) {
+        cancelPendingTextOnlyIdle()
         post(action: "state", value: "talk_soft")
         if let subtitle, !subtitle.isEmpty { post(action: "subtitle", value: subtitle) }
     }
-    static func say(_ text: String) {
+    static func responseCompleted(_ text: String, hasTTSPlayback: Bool) {
+        cancelPendingTextOnlyIdle()
         guard !text.isEmpty else { idle(); return }
         post(action: "say", value: text)
+        guard !hasTTSPlayback else { return }
+        let work = DispatchWorkItem {
+            pendingTextOnlyIdle = nil
+            idle(clearSubtitle: false)
+        }
+        pendingTextOnlyIdle = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + textOnlyIdleDelay, execute: work)
     }
     static func idle(clearSubtitle: Bool = true) {
+        cancelPendingTextOnlyIdle()
         post(action: "state", value: "idle_01")
         if clearSubtitle { post(action: "clearSubtitle", value: nil) }
+    }
+    private static func cancelPendingTextOnlyIdle() {
+        pendingTextOnlyIdle?.cancel()
+        pendingTextOnlyIdle = nil
     }
     private static func post(action: String, value: String?) {
         var info: [String: Any] = ["action": action]
@@ -186,15 +206,23 @@ private struct NativeAvatarDiagnosticsOverlay: View {
                 Text("Native Avatar DEBUG diagnostics").font(.caption.bold())
                 Spacer()
                 Button("Copy") { UIPasteboard.general.string = diagnostics.text }
+                    .contentShape(Rectangle())
                 Button("Close", action: close)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.bordered)
+            .contentShape(Rectangle())
+            .zIndex(1)
             ScrollView {
                 Text(diagnostics.text)
                     .font(.system(.caption2, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
+            .contentShape(Rectangle())
+            .zIndex(0)
         }
+        .allowsHitTesting(true)
         .foregroundStyle(.white)
         .padding(12)
         .background(.black.opacity(0.92), in: RoundedRectangle(cornerRadius: 14))
@@ -267,7 +295,11 @@ struct NativeAvatarView: View {
                 HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()
             }
 #if DEBUG
-            if showsDiagnostics { NativeAvatarDiagnosticsOverlay { showsDiagnostics = false } }
+            if showsDiagnostics {
+                NativeAvatarDiagnosticsOverlay { showsDiagnostics = false }
+                    .zIndex(10)
+                    .allowsHitTesting(true)
+            }
 #endif
         }
 #if DEBUG

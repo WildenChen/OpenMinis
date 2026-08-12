@@ -73,13 +73,15 @@ enum OpenClawStreamReliability {
                                         if finalSubtitle.isEmpty {
                                             SoulNestAvatarPresentation.idle()
                                         } else {
-                                            // `say` keeps the talking clip +
-                                            // subtitle visible for a short
-                                            // presentation window, matching the
-                                            // existing Avatar shell fallback when
-                                            // exact TTS completion metadata is not
-                                            // available.
-                                            SoulNestAvatarPresentation.say(finalSubtitle)
+                                            // Text-only replies keep the final
+                                            // subtitle briefly, then return to
+                                            // idle. When reply TTS can play, its
+                                            // actual playback lifecycle remains
+                                            // authoritative for the idle transition.
+                                            SoulNestAvatarPresentation.responseCompleted(
+                                                finalSubtitle,
+                                                hasTTSPlayback: VoiceOutputState.shared.canPlay
+                                            )
                                         }
                                     }
                                 }
@@ -98,7 +100,10 @@ enum OpenClawStreamReliability {
                             if finalSubtitle.isEmpty {
                                 SoulNestAvatarPresentation.idle()
                             } else {
-                                SoulNestAvatarPresentation.say(finalSubtitle)
+                                SoulNestAvatarPresentation.responseCompleted(
+                                    finalSubtitle,
+                                    hasTTSPlayback: VoiceOutputState.shared.canPlay
+                                )
                             }
                         }
                         continuation.finish()
