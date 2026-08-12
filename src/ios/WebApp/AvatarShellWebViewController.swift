@@ -423,6 +423,7 @@ struct NativeAvatarView: View {
     @ObservedObject private var preferences = NativeAvatarPreferences.shared
     @State private var outfit = NativeAvatarOutfit.casual.rawValue
     @State private var input = ""
+    private let testStates = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
 #if DEBUG
     @State private var showsDiagnostics = false
 #endif
@@ -444,6 +445,16 @@ struct NativeAvatarView: View {
                     // the Dynamic Island inset a second time and push controls
                     // down over the Avatar's face.
                     .padding(.top, 8)
+                    HStack {
+                        Spacer()
+                        Picker(String(localized: "Avatar Emotion"), selection: $avatar.state) {
+                            ForEach(testStates, id: \.self) { state in
+                                Text(preferences.stateDisplayName(for: state)).tag(state)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.horizontal)
                     Spacer()
                     if !avatar.subtitle.isEmpty || avatar.state == "thinking" { Text(avatar.subtitle.isEmpty ? "思考中…" : avatar.subtitle).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal) }
                     HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()

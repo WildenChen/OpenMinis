@@ -32,6 +32,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "短褲" } }
       }
     },
+    "Avatar Emotion" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Emotion" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "情绪" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "情緒" } }
+      }
+    },
     "Avatar Settings" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar" } },
