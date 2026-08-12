@@ -365,7 +365,11 @@ struct NativeAvatarView: View {
 #endif
                     Picker("Outfit", selection: $outfit) { ForEach(preferences.outfits.filter(preferences.isEnabled), id: \.self) { Text(preferences.displayName(for: $0)).tag($0) } }.pickerStyle(.menu) }
                     .padding(.horizontal)
-                    .padding(.top, max(8, proxy.safeAreaInsets.top + 8))
+                    // The NativeAvatarView itself now respects the host safe
+                    // area. Adding proxy.safeAreaInsets.top here would apply
+                    // the Dynamic Island inset a second time and push controls
+                    // down over the Avatar's face.
+                    .padding(.top, 8)
                     Spacer()
                     if !avatar.subtitle.isEmpty || avatar.state == "thinking" { Text(avatar.subtitle.isEmpty ? "思考中…" : avatar.subtitle).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal) }
                     HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()
