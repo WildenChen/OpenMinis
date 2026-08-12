@@ -23,6 +23,7 @@ enum NativeAvatarOutfit: String, CaseIterable, Identifiable {
 final class NativeAvatarPreferences: ObservableObject {
     static let shared = NativeAvatarPreferences()
     static let autoOpenKey = "avatar.autoOpenConversation"
+    private static let defaultOutfitKey = "avatar.defaultOutfit"
     private static let enabledOutfitsKey = "avatar.enabledOutfits"
     private static let customOutfitsKey = "avatar.customOutfits"
     private static let customOutfitNamesKey = "avatar.customOutfitNames"
@@ -30,6 +31,7 @@ final class NativeAvatarPreferences: ObservableObject {
     private static let mappingMetadataKey = "avatar.videoMappingMetadata"
 
     @Published var autoOpen: Bool { didSet { UserDefaults.standard.set(autoOpen, forKey: Self.autoOpenKey) } }
+    @Published var defaultOutfit: String { didSet { UserDefaults.standard.set(defaultOutfit, forKey: Self.defaultOutfitKey) } }
     @Published private(set) var enabledOutfits: Set<String> { didSet { UserDefaults.standard.set(Array(enabledOutfits), forKey: Self.enabledOutfitsKey) } }
     @Published private(set) var customOutfits: [String] { didSet { UserDefaults.standard.set(customOutfits, forKey: Self.customOutfitsKey) } }
     @Published private(set) var customOutfitNames: [String: String] { didSet { UserDefaults.standard.set(customOutfitNames, forKey: Self.customOutfitNamesKey) } }
@@ -39,15 +41,22 @@ final class NativeAvatarPreferences: ObservableObject {
     private init() {
         let defaults = UserDefaults.standard
         autoOpen = defaults.object(forKey: Self.autoOpenKey) as? Bool ?? true
+        defaultOutfit = defaults.string(forKey: Self.defaultOutfitKey) ?? NativeAvatarOutfit.casual.rawValue
         enabledOutfits = Set(defaults.stringArray(forKey: Self.enabledOutfitsKey) ?? NativeAvatarOutfit.allCases.map(\.rawValue))
         customOutfits = defaults.stringArray(forKey: Self.customOutfitsKey) ?? []
         customOutfitNames = defaults.dictionary(forKey: Self.customOutfitNamesKey) as? [String: String] ?? [:]
         videoMappings = defaults.dictionary(forKey: Self.mappingsKey) as? [String: String] ?? [:]
         videoMappingMetadata = defaults.dictionary(forKey: Self.mappingMetadataKey) as? [String: [String: String]] ?? [:]
         enabledOutfits.insert(NativeAvatarOutfit.casual.rawValue)
+        if !outfits.contains(defaultOutfit) || !isEnabled(defaultOutfit) {
+            defaultOutfit = NativeAvatarOutfit.casual.rawValue
+        }
     }
 
     var outfits: [String] { NativeAvatarOutfit.allCases.map(\.rawValue) + customOutfits }
+    var resolvedDefaultOutfit: String {
+        outfits.contains(defaultOutfit) && isEnabled(defaultOutfit) ? defaultOutfit : NativeAvatarOutfit.casual.rawValue
+    }
     func isBuiltIn(_ outfit: String) -> Bool { NativeAvatarOutfit(rawValue: outfit) != nil }
     func displayName(for outfit: String) -> String { NativeAvatarOutfit(rawValue: outfit)?.displayName ?? customOutfitNames[outfit] ?? outfit }
     func stateDisplayName(for state: String) -> String {
@@ -69,6 +78,7 @@ final class NativeAvatarPreferences: ObservableObject {
     func setEnabled(_ enabled: Bool, outfit: String) {
         guard outfit != NativeAvatarOutfit.casual.rawValue || enabled else { return }
         if enabled { enabledOutfits.insert(outfit) } else { enabledOutfits.remove(outfit) }
+        if !enabled, defaultOutfit == outfit { defaultOutfit = NativeAvatarOutfit.casual.rawValue }
     }
     func addCustomOutfit(named name: String) -> String? {
         let id = name.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: "-")
@@ -122,6 +132,7 @@ final class NativeAvatarPreferences: ObservableObject {
         customOutfits.removeAll { $0 == outfit }
         customOutfitNames[outfit] = nil
         enabledOutfits.remove(outfit)
+        if defaultOutfit == outfit { defaultOutfit = NativeAvatarOutfit.casual.rawValue }
     }
     private func removeVideoOverride(forKey key: String) {
         guard let path = videoMappings.removeValue(forKey: key) else {
@@ -445,6 +456,7 @@ struct NativeAvatarView: View {
 #if DEBUG
         .onAppear { NativeAvatarDiagnostics.shared.captureRuntime(outfit: outfit, state: avatar.state) }
 #endif
+        .onAppear { outfit = preferences.resolvedDefaultOutfit }
         .onDisappear { avatar.subtitle = "" }
     }
     private func send() { let text = input.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty else { return }; input = ""; onSend(text) }

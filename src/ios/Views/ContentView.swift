@@ -4758,6 +4758,11 @@ private struct AvatarSettingsView: View {
         List {
             Section {
                 Toggle(String(localized: "Avatar Settings Auto Open"), isOn: $preferences.autoOpen)
+                Picker(String(localized: "Avatar Settings Default Outfit"), selection: $preferences.defaultOutfit) {
+                    ForEach(preferences.outfits.filter(preferences.isEnabled), id: \.self) {
+                        Text(preferences.displayName(for: $0)).tag($0)
+                    }
+                }
             } header: {
                 Text("Avatar Settings Conversation")
             } footer: {

@@ -116,6 +116,13 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預設" } }
       }
     },
+    "Avatar Settings Default Outfit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Outfit on Entry" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进入时的默认服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預設進入時的服裝" } }
+      }
+    },
     "Avatar Settings Delete Outfit" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Outfit" } },
