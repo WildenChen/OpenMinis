@@ -25,24 +25,46 @@ final class NativeAvatarPreferences: ObservableObject {
     static let autoOpenKey = "avatar.autoOpenConversation"
     private static let enabledOutfitsKey = "avatar.enabledOutfits"
     private static let customOutfitsKey = "avatar.customOutfits"
+    private static let customOutfitNamesKey = "avatar.customOutfitNames"
     private static let mappingsKey = "avatar.videoMappings"
+    private static let mappingMetadataKey = "avatar.videoMappingMetadata"
 
     @Published var autoOpen: Bool { didSet { UserDefaults.standard.set(autoOpen, forKey: Self.autoOpenKey) } }
     @Published private(set) var enabledOutfits: Set<String> { didSet { UserDefaults.standard.set(Array(enabledOutfits), forKey: Self.enabledOutfitsKey) } }
     @Published private(set) var customOutfits: [String] { didSet { UserDefaults.standard.set(customOutfits, forKey: Self.customOutfitsKey) } }
+    @Published private(set) var customOutfitNames: [String: String] { didSet { UserDefaults.standard.set(customOutfitNames, forKey: Self.customOutfitNamesKey) } }
     @Published private(set) var videoMappings: [String: String] { didSet { UserDefaults.standard.set(videoMappings, forKey: Self.mappingsKey) } }
+    @Published private(set) var videoMappingMetadata: [String: [String: String]] { didSet { UserDefaults.standard.set(videoMappingMetadata, forKey: Self.mappingMetadataKey) } }
 
     private init() {
         let defaults = UserDefaults.standard
         autoOpen = defaults.object(forKey: Self.autoOpenKey) as? Bool ?? true
         enabledOutfits = Set(defaults.stringArray(forKey: Self.enabledOutfitsKey) ?? NativeAvatarOutfit.allCases.map(\.rawValue))
         customOutfits = defaults.stringArray(forKey: Self.customOutfitsKey) ?? []
+        customOutfitNames = defaults.dictionary(forKey: Self.customOutfitNamesKey) as? [String: String] ?? [:]
         videoMappings = defaults.dictionary(forKey: Self.mappingsKey) as? [String: String] ?? [:]
+        videoMappingMetadata = defaults.dictionary(forKey: Self.mappingMetadataKey) as? [String: [String: String]] ?? [:]
         enabledOutfits.insert(NativeAvatarOutfit.casual.rawValue)
     }
 
     var outfits: [String] { NativeAvatarOutfit.allCases.map(\.rawValue) + customOutfits }
-    func displayName(for outfit: String) -> String { NativeAvatarOutfit(rawValue: outfit)?.displayName ?? outfit }
+    func isBuiltIn(_ outfit: String) -> Bool { NativeAvatarOutfit(rawValue: outfit) != nil }
+    func displayName(for outfit: String) -> String { NativeAvatarOutfit(rawValue: outfit)?.displayName ?? customOutfitNames[outfit] ?? outfit }
+    func stateDisplayName(for state: String) -> String {
+        switch state {
+        case "idle_01": return String(localized: "Avatar State Idle 1")
+        case "idle_02": return String(localized: "Avatar State Idle 2")
+        case "thinking": return String(localized: "Avatar State Thinking")
+        case "talk_soft": return String(localized: "Avatar State Talk Soft")
+        case "talk_happy": return String(localized: "Avatar State Talk Happy")
+        case "talk_excited": return String(localized: "Avatar State Talk Excited")
+        case "shy": return String(localized: "Avatar State Shy")
+        case "sad": return String(localized: "Avatar State Sad")
+        case "angry": return String(localized: "Avatar State Angry")
+        case "caring": return String(localized: "Avatar State Caring")
+        default: return state
+        }
+    }
     func isEnabled(_ outfit: String) -> Bool { enabledOutfits.contains(outfit) }
     func setEnabled(_ enabled: Bool, outfit: String) {
         guard outfit != NativeAvatarOutfit.casual.rawValue || enabled else { return }
@@ -51,14 +73,25 @@ final class NativeAvatarPreferences: ObservableObject {
     func addCustomOutfit(named name: String) -> String? {
         let id = name.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: "-")
         guard !id.isEmpty, !outfits.contains(id) else { return nil }
-        customOutfits.append(id); enabledOutfits.insert(id); return id
+        customOutfits.append(id)
+        customOutfitNames[id] = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        enabledOutfits.insert(id)
+        return id
     }
     func mappingURL(outfit: String, state: String) -> URL? {
         guard let path = videoMappings["\(outfit)/\(state)"] else { return nil }
         let url = URL(fileURLWithPath: path)
         return FileManager.default.fileExists(atPath: url.path) && FileManager.default.isReadableFile(atPath: url.path) ? url : nil
     }
-    func importVideo(from source: URL, outfit: String, state: String) async throws {
+    func mappingOriginalFilename(outfit: String, state: String) -> String? {
+        let key = "\(outfit)/\(state)"
+        if let filename = videoMappingMetadata[key]?["originalFilename"], !filename.isEmpty { return filename }
+        return videoMappings[key].map { URL(fileURLWithPath: $0).lastPathComponent }
+    }
+    func hasVideoOverride(outfit: String, state: String) -> Bool {
+        videoMappings["\(outfit)/\(state)"] != nil
+    }
+    func importVideo(from source: URL, outfit: String, state: String, originalFilename: String? = nil) async throws {
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
         let asset = AVURLAsset(url: source)
@@ -73,7 +106,37 @@ final class NativeAvatarPreferences: ObservableObject {
         try? FileManager.default.removeItem(at: destination)
         try FileManager.default.copyItem(at: source, to: destination)
         guard FileManager.default.isReadableFile(atPath: destination.path) else { throw CocoaError(.fileReadNoPermission) }
-        videoMappings["\(outfit)/\(state)"] = destination.path
+        let key = "\(outfit)/\(state)"
+        videoMappings[key] = destination.path
+        videoMappingMetadata[key] = ["originalFilename": originalFilename ?? source.lastPathComponent]
+    }
+    func removeVideoOverride(outfit: String, state: String) {
+        removeVideoOverride(forKey: "\(outfit)/\(state)")
+    }
+    func removeOutfitOverrides(outfit: String) {
+        videoMappings.keys.filter { $0.hasPrefix("\(outfit)/") }.forEach(removeVideoOverride(forKey:))
+    }
+    func deleteCustomOutfit(_ outfit: String) {
+        guard customOutfits.contains(outfit) else { return }
+        removeOutfitOverrides(outfit: outfit)
+        customOutfits.removeAll { $0 == outfit }
+        customOutfitNames[outfit] = nil
+        enabledOutfits.remove(outfit)
+    }
+    private func removeVideoOverride(forKey key: String) {
+        guard let path = videoMappings.removeValue(forKey: key) else {
+            videoMappingMetadata[key] = nil
+            return
+        }
+        videoMappingMetadata[key] = nil
+        let url = URL(fileURLWithPath: path)
+        guard isManagedCustomAsset(url), !videoMappings.values.contains(path) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+    private func isManagedCustomAsset(_ url: URL) -> Bool {
+        guard let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return false }
+        let customRoot = support.appendingPathComponent("SoulNest/AvatarAssets/custom", isDirectory: true).standardizedFileURL.path + "/"
+        return url.standardizedFileURL.path.hasPrefix(customRoot)
     }
 }
 

@@ -4751,16 +4751,17 @@ private struct AvatarSettingsView: View {
     @State private var importError: String?
     @State private var customOutfitName = ""
     @State private var showCustomOutfitPrompt = false
+    @State private var outfitPendingDeletion: String?
     private let states = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
 
     var body: some View {
         List {
             Section {
-                Toggle("Open Avatar when entering a conversation", isOn: $preferences.autoOpen)
+                Toggle(String(localized: "Avatar Settings Auto Open"), isOn: $preferences.autoOpen)
             } header: {
-                Text("Conversation")
+                Text("Avatar Settings Conversation")
             } footer: {
-                Text("When off, conversations open in the standard chat view. Avatar can still be opened from the chat menu.")
+                Text("Avatar Settings Conversation Footer")
             }
 
             Section {
@@ -4768,63 +4769,93 @@ private struct AvatarSettingsView: View {
                     Toggle(preferences.displayName(for: outfit), isOn: outfitBinding(outfit))
                     .disabled(outfit == NativeAvatarOutfit.casual.rawValue)
                 }
-                Button("Add Custom Outfit") { showCustomOutfitPrompt = true }
+                Button(String(localized: "Avatar Settings Add Custom Outfit")) { showCustomOutfitPrompt = true }
             } header: {
-                Text("Outfits")
+                Text("Avatar Settings Outfits")
             } footer: {
-                Text("Built-in IDs remain unchanged. Custom outfit videos are stored locally and are never added to Git.")
+                Text("Avatar Settings Outfits Footer")
             }
 
             Section {
-                Picker("Outfit", selection: $selectedOutfit) {
+                Picker(String(localized: "Avatar Settings Outfit"), selection: $selectedOutfit) {
                     ForEach(preferences.outfits, id: \.self) { Text(preferences.displayName(for: $0)).tag($0) }
                 }
                 ForEach(states, id: \.self) { state in
-                    Button {
-                        importState = state
-                    } label: {
-                        HStack {
+                    HStack {
+                        Button {
+                            importState = state
+                        } label: {
                             VStack(alignment: .leading) {
-                                Text(state)
-                                Text(preferences.mappingURL(outfit: selectedOutfit, state: state)?.lastPathComponent ?? "Bundled fallback")
+                                Text(preferences.stateDisplayName(for: state))
+                                Text(videoDescription(for: state))
                                     .font(.caption).foregroundStyle(.secondary)
                             }
-                            Spacer()
+                        }
+                        Spacer()
+                        if preferences.hasVideoOverride(outfit: selectedOutfit, state: state) {
+                            Button(String(localized: "Avatar Settings Restore Default")) {
+                                preferences.removeVideoOverride(outfit: selectedOutfit, state: state)
+                            }
+                            .buttonStyle(.borderless)
+                        } else {
                             Image(systemName: "square.and.arrow.down")
                         }
                     }
                 }
+                Button(String(localized: "Avatar Settings Restore Outfit Defaults")) {
+                    preferences.removeOutfitOverrides(outfit: selectedOutfit)
+                }
+                .disabled(!states.contains { preferences.hasVideoOverride(outfit: selectedOutfit, state: $0) })
+                if !preferences.isBuiltIn(selectedOutfit) {
+                    Button(String(localized: "Avatar Settings Delete Outfit"), role: .destructive) {
+                        outfitPendingDeletion = selectedOutfit
+                    }
+                }
             } header: {
-                Text("Video Mapping")
+                Text("Avatar Settings Video Mapping")
             } footer: {
-                Text("Choose a local video to replace a state. Imports are validated for readable, playable video before becoming active; missing optional states keep the native fallback.")
+                Text("Avatar Settings Video Mapping Footer")
             }
         }
-        .navigationTitle("Avatar")
+        .navigationTitle("Avatar Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .alert("Add Custom Outfit", isPresented: $showCustomOutfitPrompt) {
-            TextField("Outfit name", text: $customOutfitName)
-            Button("Add") { _ = preferences.addCustomOutfit(named: customOutfitName); customOutfitName = "" }
+        .alert("Avatar Settings Add Custom Outfit", isPresented: $showCustomOutfitPrompt) {
+            TextField("Avatar Settings Outfit Name", text: $customOutfitName)
+            Button("Avatar Settings Add") {
+                if let outfit = preferences.addCustomOutfit(named: customOutfitName) { selectedOutfit = outfit }
+                customOutfitName = ""
+            }
             Button("Cancel", role: .cancel) { customOutfitName = "" }
         } message: {
-            Text("Add a local outfit category, then import a video for each state you need.")
+            Text("Avatar Settings Add Outfit Message")
         }
-        .alert("Avatar Video Import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
+        .alert("Avatar Settings Video Import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK", role: .cancel) { importError = nil }
         } message: { Text(importError ?? "") }
-        .confirmationDialog("Import Avatar Video", isPresented: Binding(get: { importState != nil }, set: { if !$0 { importState = nil } })) {
-            Button("Choose from Photos") {
+        .confirmationDialog("Avatar Settings Import Video", isPresented: Binding(get: { importState != nil }, set: { if !$0 { importState = nil } })) {
+            Button("Avatar Settings Choose from Photos") {
                 photoImportState = importState
                 importState = nil
                 DispatchQueue.main.async { isPhotoPickerPresented = true }
             }
-            Button("Choose from Files") {
+            Button("Avatar Settings Choose from Files") {
                 fileImportState = importState
                 importState = nil
             }
             Button("Cancel", role: .cancel) { importState = nil }
         } message: {
-            Text("Choose a video for this Avatar state.")
+            Text("Avatar Settings Choose Video Message")
+        }
+        .confirmationDialog("Avatar Settings Delete Outfit", isPresented: Binding(get: { outfitPendingDeletion != nil }, set: { if !$0 { outfitPendingDeletion = nil } })) {
+            Button("Avatar Settings Delete Outfit", role: .destructive) {
+                guard let outfitPendingDeletion else { return }
+                preferences.deleteCustomOutfit(outfitPendingDeletion)
+                selectedOutfit = NativeAvatarOutfit.casual.rawValue
+                self.outfitPendingDeletion = nil
+            }
+            Button("Cancel", role: .cancel) { outfitPendingDeletion = nil }
+        } message: {
+            Text("Avatar Settings Delete Outfit Message")
         }
         .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhotoVideo, matching: .videos)
         .onChange(of: selectedPhotoVideo) { item in
@@ -4837,7 +4868,7 @@ private struct AvatarSettingsView: View {
                     guard let video = try await item.loadTransferable(type: VideoFileTransferable.self) else {
                         throw CocoaError(.fileReadUnknown)
                     }
-                    try await preferences.importVideo(from: video.url, outfit: outfit, state: state)
+                    try await preferences.importVideo(from: video.url, outfit: outfit, state: state, originalFilename: video.originalFilename)
                 } catch {
                     importError = error.localizedDescription
                 }
@@ -4859,6 +4890,15 @@ private struct AvatarSettingsView: View {
 
     private func outfitBinding(_ outfit: String) -> Binding<Bool> {
         Binding(get: { preferences.isEnabled(outfit) }, set: { preferences.setEnabled($0, outfit: outfit) })
+    }
+
+    private func videoDescription(for state: String) -> String {
+        if let filename = preferences.mappingOriginalFilename(outfit: selectedOutfit, state: state) {
+            return "\(filename) · \(String(localized: "Avatar Settings Custom"))"
+        }
+        return preferences.isBuiltIn(selectedOutfit)
+            ? String(localized: "Avatar Settings Default")
+            : String(localized: "Avatar Settings Not Configured")
     }
 }
 
@@ -4974,7 +5014,7 @@ private struct SettingsSheet: View {
                     NavigationLink {
                         AvatarSettingsView()
                     } label: {
-                        Label("Avatar", systemImage: "person.crop.rectangle")
+                        Label("Avatar Settings", systemImage: "person.crop.rectangle")
                     }
                 }
 
