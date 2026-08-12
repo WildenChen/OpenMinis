@@ -4843,7 +4843,7 @@ private struct AvatarSettingsView: View {
                 }
             }
         }
-        .fileImporter(isPresented: Binding(get: { fileImportState != nil }, set: { if !$0 { fileImportState = nil } }), allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie]) { result in
+        .fileImporter(isPresented: Binding(get: { fileImportState != nil }, set: { if !$0 { fileImportState = nil } }), allowedContentTypes: [.audiovisualContent]) { result in
             guard let state = fileImportState else { return }
             fileImportState = nil
             switch result {
