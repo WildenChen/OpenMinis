@@ -4,6 +4,241 @@
     "" : {
 
     },
+    "Avatar Outfit Casual" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Casual" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "休闲" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "休閒" } }
+      }
+    },
+    "Avatar Outfit Office" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Office" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上班" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上班" } }
+      }
+    },
+    "Avatar Outfit Pajamas" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pajamas" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "睡衣" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "睡衣" } }
+      }
+    },
+    "Avatar Outfit Shorts" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shorts" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "短裤" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "短褲" } }
+      }
+    },
+    "Avatar Emotion" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Emotion" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "情绪" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "情緒" } }
+      }
+    },
+    "Avatar Settings" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟形象" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "虛擬角色" } }
+      }
+    },
+    "Avatar Settings Add" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增" } }
+      }
+    },
+    "Avatar Settings Add Custom Outfit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Custom Outfit" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加自定义服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增自訂服裝" } }
+      }
+    },
+    "Avatar Settings Add Outfit Message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a local outfit category, then import a video for each state you need." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新增本地服装分类，然后为需要的状态导入影片。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增本機服裝分類，再為需要的狀態匯入影片。" } }
+      }
+    },
+    "Avatar Settings Auto Open" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Avatar when entering a conversation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进入对话时自动打开虚拟形象" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "進入對話時自動開啟 Avatar" } }
+      }
+    },
+    "Avatar Settings Choose from Files" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从文件选择" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從檔案選擇" } }
+      }
+    },
+    "Avatar Settings Choose from Photos" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose from Photos" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从照片选择" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "從照片選擇" } }
+      }
+    },
+    "Avatar Settings Choose Video Message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a video for this Avatar state." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为此虚拟形象状态选择影片。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "為此 Avatar 狀態選擇影片。" } }
+      }
+    },
+    "Avatar Settings Conversation" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Conversation" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "对话" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "對話" } }
+      }
+    },
+    "Avatar Settings Conversation Footer" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "When off, conversations open in the standard chat view. Avatar can still be opened from the chat menu." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关闭后，对话会在标准聊天界面开启；仍可从聊天菜单打开虚拟形象。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉後，對話會在標準聊天介面開啟；仍可從聊天選單開啟 Avatar。" } }
+      }
+    },
+    "Avatar Settings Custom" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Custom" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自定义" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自訂" } }
+      }
+    },
+    "Avatar Settings Default" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "默认" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預設" } }
+      }
+    },
+    "Avatar Settings Default Outfit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Default Outfit on Entry" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "进入时的默认服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "預設進入時的服裝" } }
+      }
+    },
+    "Avatar Settings Delete Outfit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Outfit" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除服裝" } }
+      }
+    },
+    "Avatar Settings Delete Outfit Message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This removes the custom outfit and its local video overrides." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "这会移除自定义服装及其本地影片覆盖。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "這會移除自訂服裝及其本機影片覆寫。" } }
+      }
+    },
+    "Avatar Settings Import Video" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Import Avatar Video" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "导入虚拟形象影片" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "匯入 Avatar 影片" } }
+      }
+    },
+    "Avatar Settings Not Configured" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not Configured" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未设置" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "未設定" } }
+      }
+    },
+    "Avatar Settings Outfit" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Outfit" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "服裝" } }
+      }
+    },
+    "Avatar Settings Outfit Name" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Outfit name" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服装名称" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "服裝名稱" } }
+      }
+    },
+    "Avatar Settings Outfits" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Outfits" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "服装" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "服裝" } }
+      }
+    },
+    "Avatar Settings Outfits Footer" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Built-in IDs remain unchanged. Custom outfit videos are stored locally and are never added to Git." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "内建 ID 保持不变。自定义服装影片仅存储在本机，绝不会加入 Git。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "內建 ID 保持不變。自訂服裝影片僅儲存在本機，絕不會加入 Git。" } }
+      }
+    },
+    "Avatar Settings Restore Default" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Default" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还原默认" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原預設" } }
+      }
+    },
+    "Avatar Settings Restore Outfit Defaults" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Outfit Defaults" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "还原此服装预设" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原此服裝預設" } }
+      }
+    },
+    "Avatar State Caring" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Caring" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关心" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關心" } } }
+    },
+    "Avatar State Idle 1" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Idle 1" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待机 1" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "待機 1" } } }
+    },
+    "Avatar State Idle 2" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Idle 2" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "待机 2" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "待機 2" } } }
+    },
+    "Avatar State Thinking" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Thinking" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "思考中" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "思考中" } } }
+    },
+    "Avatar State Talk Soft" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Normal Talking" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "一般说话" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一般說話" } } }
+    },
+    "Avatar State Talk Happy" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Happy Talking" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开心说话" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開心說話" } } }
+    },
+    "Avatar State Talk Excited" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Excited Talking" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "兴奋说话" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "興奮說話" } } }
+    },
+    "Avatar State Shy" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Shy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "害羞" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "害羞" } } }
+    },
+    "Avatar State Sad" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Sad" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "难过" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "難過" } } }
+    },
+    "Avatar State Angry" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Angry" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生气" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "生氣" } } }
+    },
+    "Avatar Settings Video Import" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar Video Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟形象影片导入" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Avatar 影片匯入" } } }
+    },
+    "Avatar Settings Video Mapping" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Video Mapping" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "影片设置" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "影片設定" } } }
+    },
+    "Avatar Settings Video Mapping Footer" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a local video to replace a state. Imports are validated before becoming active; missing optional states keep the native fallback." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择本地影片替换状态。导入会先验证；未设置的可选状态会保留原生备用影片。" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇本機影片替換狀態。匯入會先驗證；未設定的可選狀態會保留原生備用影片。" } } }
+    },
     "—" : {
 
     },

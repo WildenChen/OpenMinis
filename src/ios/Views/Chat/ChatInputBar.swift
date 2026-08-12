@@ -504,6 +504,7 @@ private struct AttachmentPreviewView: UIViewControllerRepresentable {
 
 struct VideoFileTransferable: Transferable {
     let url: URL
+    let originalFilename: String
 
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .movie) { video in
@@ -513,7 +514,7 @@ struct VideoFileTransferable: Transferable {
             let tmp = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString.prefix(8) + "_" + received.file.lastPathComponent)
             try FileManager.default.copyItem(at: received.file, to: tmp)
-            return Self(url: tmp)
+            return Self(url: tmp, originalFilename: received.file.lastPathComponent)
         }
     }
 }

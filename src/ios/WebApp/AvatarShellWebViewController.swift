@@ -6,6 +6,151 @@ extension Notification.Name {
     static let soulNestAvatarPresentation = Notification.Name("soulnest.avatar.presentation")
 }
 
+enum NativeAvatarOutfit: String, CaseIterable, Identifiable {
+    case casual, office, pajamas, shorts
+    var id: String { rawValue }
+    var displayName: String {
+        switch rawValue {
+        case "casual": return String(localized: "Avatar Outfit Casual")
+        case "office": return String(localized: "Avatar Outfit Office")
+        case "pajamas": return String(localized: "Avatar Outfit Pajamas")
+        default: return String(localized: "Avatar Outfit Shorts")
+        }
+    }
+}
+
+@MainActor
+final class NativeAvatarPreferences: ObservableObject {
+    static let shared = NativeAvatarPreferences()
+    static let autoOpenKey = "avatar.autoOpenConversation"
+    private static let defaultOutfitKey = "avatar.defaultOutfit"
+    private static let enabledOutfitsKey = "avatar.enabledOutfits"
+    private static let customOutfitsKey = "avatar.customOutfits"
+    private static let customOutfitNamesKey = "avatar.customOutfitNames"
+    private static let mappingsKey = "avatar.videoMappings"
+    private static let mappingMetadataKey = "avatar.videoMappingMetadata"
+
+    @Published var autoOpen: Bool { didSet { UserDefaults.standard.set(autoOpen, forKey: Self.autoOpenKey) } }
+    @Published var defaultOutfit: String { didSet { UserDefaults.standard.set(defaultOutfit, forKey: Self.defaultOutfitKey) } }
+    @Published private(set) var enabledOutfits: Set<String> { didSet { UserDefaults.standard.set(Array(enabledOutfits), forKey: Self.enabledOutfitsKey) } }
+    @Published private(set) var customOutfits: [String] { didSet { UserDefaults.standard.set(customOutfits, forKey: Self.customOutfitsKey) } }
+    @Published private(set) var customOutfitNames: [String: String] { didSet { UserDefaults.standard.set(customOutfitNames, forKey: Self.customOutfitNamesKey) } }
+    @Published private(set) var videoMappings: [String: String] { didSet { UserDefaults.standard.set(videoMappings, forKey: Self.mappingsKey) } }
+    @Published private(set) var videoMappingMetadata: [String: [String: String]] { didSet { UserDefaults.standard.set(videoMappingMetadata, forKey: Self.mappingMetadataKey) } }
+
+    private init() {
+        let defaults = UserDefaults.standard
+        autoOpen = defaults.object(forKey: Self.autoOpenKey) as? Bool ?? true
+        defaultOutfit = defaults.string(forKey: Self.defaultOutfitKey) ?? NativeAvatarOutfit.casual.rawValue
+        enabledOutfits = Set(defaults.stringArray(forKey: Self.enabledOutfitsKey) ?? NativeAvatarOutfit.allCases.map(\.rawValue))
+        customOutfits = defaults.stringArray(forKey: Self.customOutfitsKey) ?? []
+        customOutfitNames = defaults.dictionary(forKey: Self.customOutfitNamesKey) as? [String: String] ?? [:]
+        videoMappings = defaults.dictionary(forKey: Self.mappingsKey) as? [String: String] ?? [:]
+        videoMappingMetadata = defaults.dictionary(forKey: Self.mappingMetadataKey) as? [String: [String: String]] ?? [:]
+        enabledOutfits.insert(NativeAvatarOutfit.casual.rawValue)
+        if !outfits.contains(defaultOutfit) || !isEnabled(defaultOutfit) {
+            defaultOutfit = NativeAvatarOutfit.casual.rawValue
+        }
+    }
+
+    var outfits: [String] { NativeAvatarOutfit.allCases.map(\.rawValue) + customOutfits }
+    var resolvedDefaultOutfit: String {
+        outfits.contains(defaultOutfit) && isEnabled(defaultOutfit) ? defaultOutfit : NativeAvatarOutfit.casual.rawValue
+    }
+    func isBuiltIn(_ outfit: String) -> Bool { NativeAvatarOutfit(rawValue: outfit) != nil }
+    func displayName(for outfit: String) -> String { NativeAvatarOutfit(rawValue: outfit)?.displayName ?? customOutfitNames[outfit] ?? outfit }
+    func stateDisplayName(for state: String) -> String {
+        switch state {
+        case "idle_01": return String(localized: "Avatar State Idle 1")
+        case "idle_02": return String(localized: "Avatar State Idle 2")
+        case "thinking": return String(localized: "Avatar State Thinking")
+        case "talk_soft": return String(localized: "Avatar State Talk Soft")
+        case "talk_happy": return String(localized: "Avatar State Talk Happy")
+        case "talk_excited": return String(localized: "Avatar State Talk Excited")
+        case "shy": return String(localized: "Avatar State Shy")
+        case "sad": return String(localized: "Avatar State Sad")
+        case "angry": return String(localized: "Avatar State Angry")
+        case "caring": return String(localized: "Avatar State Caring")
+        default: return state
+        }
+    }
+    func isEnabled(_ outfit: String) -> Bool { enabledOutfits.contains(outfit) }
+    func setEnabled(_ enabled: Bool, outfit: String) {
+        guard outfit != NativeAvatarOutfit.casual.rawValue || enabled else { return }
+        if enabled { enabledOutfits.insert(outfit) } else { enabledOutfits.remove(outfit) }
+        if !enabled, defaultOutfit == outfit { defaultOutfit = NativeAvatarOutfit.casual.rawValue }
+    }
+    func addCustomOutfit(named name: String) -> String? {
+        let id = name.lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: "-")
+        guard !id.isEmpty, !outfits.contains(id) else { return nil }
+        customOutfits.append(id)
+        customOutfitNames[id] = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        enabledOutfits.insert(id)
+        return id
+    }
+    func mappingURL(outfit: String, state: String) -> URL? {
+        guard let path = videoMappings["\(outfit)/\(state)"] else { return nil }
+        let url = URL(fileURLWithPath: path)
+        return FileManager.default.fileExists(atPath: url.path) && FileManager.default.isReadableFile(atPath: url.path) ? url : nil
+    }
+    func mappingOriginalFilename(outfit: String, state: String) -> String? {
+        let key = "\(outfit)/\(state)"
+        if let filename = videoMappingMetadata[key]?["originalFilename"], !filename.isEmpty { return filename }
+        return videoMappings[key].map { URL(fileURLWithPath: $0).lastPathComponent }
+    }
+    func hasVideoOverride(outfit: String, state: String) -> Bool {
+        videoMappings["\(outfit)/\(state)"] != nil
+    }
+    func importVideo(from source: URL, outfit: String, state: String, originalFilename: String? = nil) async throws {
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        let asset = AVURLAsset(url: source)
+        guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)), !(try await asset.loadTracks(withMediaType: .video)).isEmpty else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+            .appendingPathComponent("SoulNest/AvatarAssets/custom/\(outfit)", isDirectory: true)
+        try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let ext = source.pathExtension.isEmpty ? "mp4" : source.pathExtension
+        let destination = base.appendingPathComponent("\(state).\(ext)")
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.copyItem(at: source, to: destination)
+        guard FileManager.default.isReadableFile(atPath: destination.path) else { throw CocoaError(.fileReadNoPermission) }
+        let key = "\(outfit)/\(state)"
+        videoMappings[key] = destination.path
+        videoMappingMetadata[key] = ["originalFilename": originalFilename ?? source.lastPathComponent]
+    }
+    func removeVideoOverride(outfit: String, state: String) {
+        removeVideoOverride(forKey: "\(outfit)/\(state)")
+    }
+    func removeOutfitOverrides(outfit: String) {
+        videoMappings.keys.filter { $0.hasPrefix("\(outfit)/") }.forEach(removeVideoOverride(forKey:))
+    }
+    func deleteCustomOutfit(_ outfit: String) {
+        guard customOutfits.contains(outfit) else { return }
+        removeOutfitOverrides(outfit: outfit)
+        customOutfits.removeAll { $0 == outfit }
+        customOutfitNames[outfit] = nil
+        enabledOutfits.remove(outfit)
+        if defaultOutfit == outfit { defaultOutfit = NativeAvatarOutfit.casual.rawValue }
+    }
+    private func removeVideoOverride(forKey key: String) {
+        guard let path = videoMappings.removeValue(forKey: key) else {
+            videoMappingMetadata[key] = nil
+            return
+        }
+        videoMappingMetadata[key] = nil
+        let url = URL(fileURLWithPath: path)
+        guard isManagedCustomAsset(url), !videoMappings.values.contains(path) else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+    private func isManagedCustomAsset(_ url: URL) -> Bool {
+        guard let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return false }
+        let customRoot = support.appendingPathComponent("SoulNest/AvatarAssets/custom", isDirectory: true).standardizedFileURL.path + "/"
+        return url.standardizedFileURL.path.hasPrefix(customRoot)
+    }
+}
+
 @MainActor
 enum SoulNestAvatarPresentation {
     private static let textOnlyIdleDelay: TimeInterval = 1.5
@@ -69,6 +214,7 @@ final class NativeAvatarState: ObservableObject {
     deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
 }
 
+@MainActor
 struct NativeAvatarAssetResolver {
     static let states: Set<String> = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
     static let loopStates: Set<String> = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited"]
@@ -81,6 +227,7 @@ struct NativeAvatarAssetResolver {
     }
 
     static func url(outfit: String, state: String) -> URL? {
+        if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: state) { return custom }
         let root = avatarRoot()
         let manager = FileManager.default
         func file(_ outfit: String, _ state: String) -> URL? {
@@ -273,38 +420,54 @@ struct NativeAvatarView: View {
     let onSend: (String) -> Void
     let onMic: () -> Void
     @StateObject private var avatar = NativeAvatarState()
-    @State private var outfit = "casual"
+    @ObservedObject private var preferences = NativeAvatarPreferences.shared
+    @State private var outfit = NativeAvatarOutfit.casual.rawValue
     @State private var input = ""
+    private let testStates = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
 #if DEBUG
     @State private var showsDiagnostics = false
 #endif
-    private let outfits = ["casual", "office", "pajamas", "shorts"]
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            NativeAvatarPlayer(url: NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state), looping: NativeAvatarAssetResolver.loopStates.contains(avatar.state)) { avatar.state = "idle_01" }
-                .ignoresSafeArea()
-            VStack {
-                HStack { Button(action: onClose) { Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle()) }; Spacer()
+        GeometryReader { proxy in
+            ZStack {
+                Color.black.ignoresSafeArea()
+                NativeAvatarPlayer(url: NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state), looping: NativeAvatarAssetResolver.loopStates.contains(avatar.state)) { avatar.state = "idle_01" }
+                    .ignoresSafeArea()
+                VStack {
+                    HStack { Button(action: onClose) { Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle()) }; Spacer()
 #if DEBUG
                     Button("診斷") { showsDiagnostics.toggle() }.font(.caption).padding(8).background(.ultraThinMaterial, in: Capsule())
 #endif
-                    Picker("Outfit", selection: $outfit) { ForEach(outfits, id: \.self) { Text($0.capitalized).tag($0) } }.pickerStyle(.menu) }.padding()
-                Spacer()
-                if !avatar.subtitle.isEmpty || avatar.state == "thinking" { Text(avatar.subtitle.isEmpty ? "思考中…" : avatar.subtitle).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal) }
-                HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()
-            }
+                    Picker("Outfit", selection: $outfit) { ForEach(preferences.outfits.filter(preferences.isEnabled), id: \.self) { Text(preferences.displayName(for: $0)).tag($0) } }.pickerStyle(.menu) }
+                    .padding(.horizontal)
+                    // The NativeAvatarView itself now respects the host safe
+                    // area. Adding proxy.safeAreaInsets.top here would apply
+                    // the Dynamic Island inset a second time and push controls
+                    // down over the Avatar's face.
+                    .padding(.top, 8)
+                    HStack {
+                        Spacer()
+                        Picker(String(localized: "Avatar Emotion"), selection: $avatar.state) {
+                            ForEach(testStates, id: \.self) { state in
+                                Text(preferences.stateDisplayName(for: state)).tag(state)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                    .padding(.horizontal)
+                    Spacer()
+                    if !avatar.subtitle.isEmpty || avatar.state == "thinking" { Text(avatar.subtitle.isEmpty ? "思考中…" : avatar.subtitle).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal) }
+                    HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()
+                }
 #if DEBUG
-            if showsDiagnostics {
-                NativeAvatarDiagnosticsOverlay { showsDiagnostics = false }
-                    .zIndex(10)
-                    .allowsHitTesting(true)
-            }
+                if showsDiagnostics { NativeAvatarDiagnosticsOverlay { showsDiagnostics = false }.zIndex(10).allowsHitTesting(true) }
 #endif
+            }
         }
 #if DEBUG
         .onAppear { NativeAvatarDiagnostics.shared.captureRuntime(outfit: outfit, state: avatar.state) }
 #endif
+        .onAppear { outfit = preferences.resolvedDefaultOutfit }
         .onDisappear { avatar.subtitle = "" }
     }
     private func send() { let text = input.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty else { return }; input = ""; onSend(text) }
