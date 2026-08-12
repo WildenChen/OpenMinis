@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import UniformTypeIdentifiers
 
 private let shareLog = AppLogger(category: "Share")
@@ -4743,6 +4744,10 @@ private struct AvatarSettingsView: View {
     @ObservedObject private var preferences = NativeAvatarPreferences.shared
     @State private var selectedOutfit = NativeAvatarOutfit.casual.rawValue
     @State private var importState: String?
+    @State private var fileImportState: String?
+    @State private var photoImportState: String?
+    @State private var isPhotoPickerPresented = false
+    @State private var selectedPhotoVideo: PhotosPickerItem?
     @State private var importError: String?
     @State private var customOutfitName = ""
     @State private var showCustomOutfitPrompt = false
@@ -4807,9 +4812,40 @@ private struct AvatarSettingsView: View {
         .alert("Avatar Video Import", isPresented: Binding(get: { importError != nil }, set: { if !$0 { importError = nil } })) {
             Button("OK", role: .cancel) { importError = nil }
         } message: { Text(importError ?? "") }
-        .fileImporter(isPresented: Binding(get: { importState != nil }, set: { if !$0 { importState = nil } }), allowedContentTypes: [.movie]) { result in
-            guard let state = importState else { return }
-            importState = nil
+        .confirmationDialog("Import Avatar Video", isPresented: Binding(get: { importState != nil }, set: { if !$0 { importState = nil } })) {
+            Button("Choose from Photos") {
+                photoImportState = importState
+                importState = nil
+                DispatchQueue.main.async { isPhotoPickerPresented = true }
+            }
+            Button("Choose from Files") {
+                fileImportState = importState
+                importState = nil
+            }
+            Button("Cancel", role: .cancel) { importState = nil }
+        } message: {
+            Text("Choose a video for this Avatar state.")
+        }
+        .photosPicker(isPresented: $isPhotoPickerPresented, selection: $selectedPhotoVideo, matching: .videos)
+        .onChange(of: selectedPhotoVideo) { item in
+            guard let item, let state = photoImportState else { return }
+            let outfit = selectedOutfit
+            photoImportState = nil
+            selectedPhotoVideo = nil
+            Task { @MainActor in
+                do {
+                    guard let video = try await item.loadTransferable(type: VideoFileTransferable.self) else {
+                        throw CocoaError(.fileReadUnknown)
+                    }
+                    try await preferences.importVideo(from: video.url, outfit: outfit, state: state)
+                } catch {
+                    importError = error.localizedDescription
+                }
+            }
+        }
+        .fileImporter(isPresented: Binding(get: { fileImportState != nil }, set: { if !$0 { fileImportState = nil } }), allowedContentTypes: [.movie, .mpeg4Movie, .quickTimeMovie]) { result in
+            guard let state = fileImportState else { return }
+            fileImportState = nil
             switch result {
             case .success(let url):
                 Task { @MainActor in
