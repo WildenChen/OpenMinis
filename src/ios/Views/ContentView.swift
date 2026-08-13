@@ -4752,7 +4752,7 @@ private struct AvatarSettingsView: View {
     @State private var customOutfitName = ""
     @State private var showCustomOutfitPrompt = false
     @State private var outfitPendingDeletion: String?
-    private let states = NativeAvatarEmotion.allCases.map(\.rawValue)
+    private let states = NativeAvatarEmotion.allCases.map(\.rawValue) + NativeAvatarTouchRegion.allCases.map(\.mediaState)
 
     var body: some View {
         List {
