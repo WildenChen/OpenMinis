@@ -236,6 +236,18 @@
     "Avatar Emotion Happy" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Happy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开心" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開心" } } }
     },
+    "Avatar Touch Head" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Touch: Head / face" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触摸：头部／脸部" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "觸摸：頭部／臉部" } } }
+    },
+    "Avatar Touch Upper Body" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Touch: Upper body" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触摸：上半身" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "觸摸：上半身" } } }
+    },
+    "Avatar Touch Hand Arm" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Touch: Hand / arm" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触摸：手／手臂" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "觸摸：手／手臂" } } }
+    },
+    "Avatar Touch Lower Body" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Touch: Lower body" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "触摸：下半身" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "觸摸：下半身" } } }
+    },
     "Avatar Settings Video Import" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar Video Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟形象影片导入" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Avatar 影片匯入" } } }
     },

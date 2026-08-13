@@ -36,6 +36,34 @@ enum NativeAvatarEmotion: String, CaseIterable {
     }
 }
 
+enum NativeAvatarTouchRegion: String, CaseIterable {
+    case head, upperBody, handArm, lowerBody
+
+    var mediaState: String { "reaction_\(rawValue)" }
+
+    var displayName: String {
+        switch self {
+        case .head: return String(localized: "Avatar Touch Head")
+        case .upperBody: return String(localized: "Avatar Touch Upper Body")
+        case .handArm: return String(localized: "Avatar Touch Hand Arm")
+        case .lowerBody: return String(localized: "Avatar Touch Lower Body")
+        }
+    }
+
+    static func hit(at point: CGPoint, in size: CGSize) -> Self? {
+        guard size.width > 0, size.height > 0 else { return nil }
+        let normalized = CGPoint(x: point.x / size.width, y: point.y / size.height)
+        let areas: [(Self, CGRect)] = [
+            (.head, CGRect(x: 0.28, y: 0.06, width: 0.44, height: 0.27)),
+            (.handArm, CGRect(x: 0.05, y: 0.31, width: 0.22, height: 0.38)),
+            (.handArm, CGRect(x: 0.73, y: 0.31, width: 0.22, height: 0.38)),
+            (.upperBody, CGRect(x: 0.28, y: 0.33, width: 0.44, height: 0.35)),
+            (.lowerBody, CGRect(x: 0.22, y: 0.68, width: 0.56, height: 0.32)),
+        ]
+        return areas.first(where: { $0.1.contains(normalized) })?.0
+    }
+}
+
 @MainActor
 final class NativeAvatarPreferences: ObservableObject {
     static let shared = NativeAvatarPreferences()
@@ -93,6 +121,10 @@ final class NativeAvatarPreferences: ObservableObject {
         case "sad": return String(localized: "Avatar State Sad")
         case "angry": return String(localized: "Avatar State Angry")
         case "caring": return String(localized: "Avatar State Caring")
+        case "reaction_head": return NativeAvatarTouchRegion.head.displayName
+        case "reaction_upperBody": return NativeAvatarTouchRegion.upperBody.displayName
+        case "reaction_handArm": return NativeAvatarTouchRegion.handArm.displayName
+        case "reaction_lowerBody": return NativeAvatarTouchRegion.lowerBody.displayName
         default: return state
         }
     }
@@ -278,6 +310,10 @@ final class NativeAvatarState: ObservableObject {
     @Published var subtitle = ""
     @Published var emotion: NativeAvatarEmotion = .neutral
     @Published var requestedOutfit: String?
+    @Published var reaction: NativeAvatarTouchRegion?
+
+    func beginReaction(_ region: NativeAvatarTouchRegion) { reaction = region }
+    func finishReaction() { reaction = nil }
     private var observer: NSObjectProtocol?
     init() {
         observer = NotificationCenter.default.addObserver(forName: .soulNestAvatarPresentation, object: nil, queue: .main) { [weak self] note in
@@ -348,6 +384,11 @@ struct NativeAvatarAssetResolver {
         guard let root else { return nil }
         let url = root.appendingPathComponent("assets/videos/placeholder-\(placeholder).mp4")
         return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
+    }
+
+    static func reactionURL(outfit: String, region: NativeAvatarTouchRegion) -> URL? {
+        NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: region.mediaState)
+            ?? NativeAvatarPreferences.shared.mappingURL(outfit: NativeAvatarOutfit.casual.rawValue, state: region.mediaState)
     }
 }
 
@@ -536,8 +577,18 @@ struct NativeAvatarView: View {
         GeometryReader { proxy in
             ZStack {
                 Color.black.ignoresSafeArea()
-                NativeAvatarPlayer(url: NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state, emotion: avatar.emotion), looping: NativeAvatarAssetResolver.loopStates.contains(avatar.state)) { avatar.state = "idle_01" }
+                let reactionURL = avatar.reaction.flatMap { NativeAvatarAssetResolver.reactionURL(outfit: outfit, region: $0) }
+                NativeAvatarPlayer(url: reactionURL ?? NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state, emotion: avatar.emotion), looping: reactionURL == nil && NativeAvatarAssetResolver.loopStates.contains(avatar.state)) {
+                    if avatar.reaction != nil { avatar.finishReaction() } else { avatar.state = "idle_01" }
+                }
                     .ignoresSafeArea()
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(SpatialTapGesture().onEnded { tap in
+                        guard let region = NativeAvatarTouchRegion.hit(at: tap.location, in: proxy.size),
+                              NativeAvatarAssetResolver.reactionURL(outfit: outfit, region: region) != nil else { return }
+                        avatar.beginReaction(region)
+                    })
                 VStack {
                     HStack { Button(action: onClose) { Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle()) }; Spacer()
 #if DEBUG
