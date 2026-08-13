@@ -4752,7 +4752,7 @@ private struct AvatarSettingsView: View {
     @State private var customOutfitName = ""
     @State private var showCustomOutfitPrompt = false
     @State private var outfitPendingDeletion: String?
-    private let states = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
+    private let states = NativeAvatarEmotion.allCases.map(\.rawValue)
 
     var body: some View {
         List {

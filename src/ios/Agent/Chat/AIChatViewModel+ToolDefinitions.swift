@@ -138,6 +138,20 @@ extension AIChatViewModel {
             ))
         }
 
+        if let entry = resolveCurrentEntry(),
+           ProviderConfigStore.shared.instance(for: entry.providerInstanceId)?.providerType == .openClaw {
+            tools.append(AgentToolDefinition(
+                name: "avatar_presentation",
+                description: "Set the SoulNest Avatar's local presentation without adding control text to the conversation. Use only a supported emotion and an already-configured outfit ID. Lifecycle states (idle, thinking, talking, offline) stay app-controlled.",
+                parameters: [
+                    "emotion": AgentToolParam(type: .string, description: "Optional semantic emotion.", enumValues: NativeAvatarEmotion.allCases.map(\.rawValue)),
+                    "outfit": AgentToolParam(type: .string, description: "Optional existing SoulNest outfit ID.", enumValues: NativeAvatarPreferences.shared.outfits),
+                ],
+                required: [],
+                propertyOrdering: ["emotion", "outfit"]
+            ))
+        }
+
         return tools
     }
 

@@ -381,6 +381,7 @@
 		E5U000002 /* KaTeX in Resources */ = {isa = PBXBuildFile; fileRef = E5U000012 /* KaTeX */; };
 		E5AV000002 /* Avatar in Resources */ = {isa = PBXBuildFile; fileRef = E5AV000012 /* Avatar */; };
 		E5AV000003 /* AvatarShellWebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AV000013 /* AvatarShellWebViewController.swift */; };
+		E5AVT00003 /* AvatarShellWebViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AV000013 /* AvatarShellWebViewController.swift */; };
 		E5UMP0001 /* UnifiedModelPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5UMP0011 /* UnifiedModelPicker.swift */; };
 		E5V000002 /* AlternateIcons in Resources */ = {isa = PBXBuildFile; fileRef = E5V000012 /* AlternateIcons */; };
 		E5V100001 /* MessageListLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5V100011 /* MessageListLayout.swift */; };
@@ -2493,6 +2494,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB1000120F700000000000AA /* ContextPolicy.swift in Sources */,
+				E5AVT00003 /* AvatarShellWebViewController.swift in Sources */,
 				E5LD00002 /* ToolLoopDetector.swift in Sources */,
 				E5GWF0004 /* GeminiWireFormat.swift in Sources */,
 				E5JB10001 /* JiebaWrapper.mm in Sources */,

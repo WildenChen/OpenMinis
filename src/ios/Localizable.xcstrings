@@ -230,6 +230,12 @@
     "Avatar State Angry" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Angry" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "生气" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "生氣" } } }
     },
+    "Avatar Emotion Neutral" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Neutral" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "中性" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "中性" } } }
+    },
+    "Avatar Emotion Happy" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Happy" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开心" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開心" } } }
+    },
     "Avatar Settings Video Import" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar Video Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟形象影片导入" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Avatar 影片匯入" } } }
     },
