@@ -628,6 +628,15 @@ extension AIChatViewModel {
             toolOutput = memResult.output
             toolSuccess = memResult.success
 
+        case "avatar_presentation":
+            let emotion = toolArgs["emotion"] as? String
+            let outfit = toolArgs["outfit"] as? String
+            toolOutput = SoulNestAvatarPresentation.agentPresentation(emotion: emotion, outfit: outfit)
+            toolSuccess = !toolOutput.hasPrefix("Ignored")
+            if msgIdx < messages.count, blockIdx < messages[msgIdx].blocks.count {
+                messages[msgIdx].blocks[blockIdx].content = toolOutput
+            }
+
         default:
             toolOutput = "Error: Unknown tool '\(tu.name)'"
             toolSuccess = false

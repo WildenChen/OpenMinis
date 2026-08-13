@@ -20,6 +20,22 @@ enum NativeAvatarOutfit: String, CaseIterable, Identifiable {
     }
 }
 
+enum NativeAvatarEmotion: String, CaseIterable {
+    case neutral, happy, shy, angry, sad
+
+    var mediaState: String { self == .neutral ? "idle_01" : rawValue }
+
+    var displayName: String {
+        switch self {
+        case .neutral: return String(localized: "Avatar Emotion Neutral")
+        case .happy: return String(localized: "Avatar Emotion Happy")
+        case .shy: return String(localized: "Avatar State Shy")
+        case .angry: return String(localized: "Avatar State Angry")
+        case .sad: return String(localized: "Avatar State Sad")
+        }
+    }
+}
+
 @MainActor
 final class NativeAvatarPreferences: ObservableObject {
     static let shared = NativeAvatarPreferences()
@@ -58,9 +74,14 @@ final class NativeAvatarPreferences: ObservableObject {
     var resolvedDefaultOutfit: String {
         outfits.contains(defaultOutfit) && isEnabled(defaultOutfit) ? defaultOutfit : NativeAvatarOutfit.casual.rawValue
     }
+    func resolvedOutfit(_ requested: String?) -> String {
+        guard let requested, outfits.contains(requested), isEnabled(requested) else { return resolvedDefaultOutfit }
+        return requested
+    }
     func isBuiltIn(_ outfit: String) -> Bool { NativeAvatarOutfit(rawValue: outfit) != nil }
     func displayName(for outfit: String) -> String { NativeAvatarOutfit(rawValue: outfit)?.displayName ?? customOutfitNames[outfit] ?? outfit }
     func stateDisplayName(for state: String) -> String {
+        if let emotion = NativeAvatarEmotion(rawValue: state) { return emotion.displayName }
         switch state {
         case "idle_01": return String(localized: "Avatar State Idle 1")
         case "idle_02": return String(localized: "Avatar State Idle 2")
@@ -230,6 +251,16 @@ enum SoulNestAvatarPresentation {
         post(action: "state", value: "idle_01")
         if clearSubtitle { post(action: "clearSubtitle", value: nil) }
     }
+    static func agentPresentation(emotion: String?, outfit: String?) -> String {
+        guard emotion == nil || NativeAvatarEmotion(rawValue: emotion ?? "") != nil else {
+            return "Ignored unsupported Avatar emotion."
+        }
+        let resolvedOutfit = NativeAvatarPreferences.shared.resolvedOutfit(outfit)
+        var info: [String: Any] = ["action": "agentPresentation", "outfit": resolvedOutfit]
+        if let emotion { info["emotion"] = emotion }
+        NotificationCenter.default.post(name: .soulNestAvatarPresentation, object: nil, userInfo: info)
+        return "Avatar presentation updated."
+    }
     private static func cancelPendingTextOnlyIdle() {
         pendingTextOnlyIdle?.cancel()
         pendingTextOnlyIdle = nil
@@ -245,6 +276,8 @@ enum SoulNestAvatarPresentation {
 final class NativeAvatarState: ObservableObject {
     @Published var state = "idle_01"
     @Published var subtitle = ""
+    @Published var emotion: NativeAvatarEmotion = .neutral
+    @Published var requestedOutfit: String?
     private var observer: NSObjectProtocol?
     init() {
         observer = NotificationCenter.default.addObserver(forName: .soulNestAvatarPresentation, object: nil, queue: .main) { [weak self] note in
@@ -255,6 +288,12 @@ final class NativeAvatarState: ObservableObject {
             case "subtitle": self.subtitle = value
             case "say": self.state = "talk_soft"; self.subtitle = value
             case "clearSubtitle": self.subtitle = ""
+            case "agentPresentation":
+                if let emotion = note.userInfo?["emotion"] as? String,
+                   let parsed = NativeAvatarEmotion(rawValue: emotion) {
+                    self.emotion = parsed
+                }
+                self.requestedOutfit = note.userInfo?["outfit"] as? String
             default: break
             }
         }
@@ -274,7 +313,19 @@ struct NativeAvatarAssetResolver {
         return root
     }
 
-    static func url(outfit: String, state: String) -> URL? {
+    static func emotionFallbackStates(_ emotion: NativeAvatarEmotion) -> [String] {
+        emotion == .neutral ? ["neutral", "idle_01"] : [emotion.rawValue, "neutral", "idle_01"]
+    }
+
+    static func url(outfit: String, state: String, emotion: NativeAvatarEmotion = .neutral) -> URL? {
+        if (state == "idle_01" || state == "idle_02"), emotion != .neutral {
+            for candidate in emotionFallbackStates(emotion) {
+                if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
+            }
+            for candidate in emotionFallbackStates(.neutral) {
+                if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: NativeAvatarOutfit.casual.rawValue, state: candidate) { return custom }
+            }
+        }
         if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: state) { return custom }
         let root = avatarRoot()
         let manager = FileManager.default
@@ -284,6 +335,12 @@ struct NativeAvatarAssetResolver {
             return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
         }
         let selectedOutfit = outfit == "shorts" ? "shorts_private_casual" : outfit
+        if (state == "idle_01" || state == "idle_02"), emotion != .neutral,
+           let url = file(selectedOutfit, emotion.rawValue)
+            ?? file(selectedOutfit, "idle_01")
+            ?? file("casual", "idle_01") {
+            return url
+        }
         if let url = file(selectedOutfit, state) ?? file(selectedOutfit, state.hasPrefix("talk_") ? "talk_soft" : "idle_01") ?? file("casual", state) { return url }
         let placeholder: String = switch state {
         case "idle_01", "idle_02": "idle"; case "thinking": "thinking"; case "talk_happy": "happy"; case "talk_excited": "excited"; case "shy": "shy"; case "sad": "sad"; case "angry": "angry"; case "caring": "talking"; default: "talking"
@@ -471,7 +528,7 @@ struct NativeAvatarView: View {
     @ObservedObject private var preferences = NativeAvatarPreferences.shared
     @State private var outfit = NativeAvatarOutfit.casual.rawValue
     @State private var input = ""
-    private let testStates = ["idle_01", "idle_02", "thinking", "talk_soft", "talk_happy", "talk_excited", "shy", "sad", "angry", "caring"]
+    private let testEmotions = NativeAvatarEmotion.allCases
 #if DEBUG
     @State private var showsDiagnostics = false
 #endif
@@ -479,7 +536,7 @@ struct NativeAvatarView: View {
         GeometryReader { proxy in
             ZStack {
                 Color.black.ignoresSafeArea()
-                NativeAvatarPlayer(url: NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state), looping: NativeAvatarAssetResolver.loopStates.contains(avatar.state)) { avatar.state = "idle_01" }
+                NativeAvatarPlayer(url: NativeAvatarAssetResolver.url(outfit: outfit, state: avatar.state, emotion: avatar.emotion), looping: NativeAvatarAssetResolver.loopStates.contains(avatar.state)) { avatar.state = "idle_01" }
                     .ignoresSafeArea()
                 VStack {
                     HStack { Button(action: onClose) { Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle()) }; Spacer()
@@ -495,9 +552,9 @@ struct NativeAvatarView: View {
                     .padding(.top, 8)
                     HStack {
                         Spacer()
-                        Picker(String(localized: "Avatar Emotion"), selection: $avatar.state) {
-                            ForEach(testStates, id: \.self) { state in
-                                Text(preferences.stateDisplayName(for: state)).tag(state)
+                        Picker(String(localized: "Avatar Emotion"), selection: $avatar.emotion) {
+                            ForEach(testEmotions, id: \.rawValue) { emotion in
+                                Text(emotion.displayName).tag(emotion)
                             }
                         }
                         .pickerStyle(.menu)
@@ -516,6 +573,9 @@ struct NativeAvatarView: View {
         .onAppear { NativeAvatarDiagnostics.shared.captureRuntime(outfit: outfit, state: avatar.state) }
 #endif
         .onAppear { outfit = preferences.resolvedDefaultOutfit }
+        .onChange(of: avatar.requestedOutfit) { requested in
+            if let requested { outfit = preferences.resolvedOutfit(requested) }
+        }
         .onDisappear { avatar.subtitle = "" }
     }
     private func send() { let text = input.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty else { return }; input = ""; onSend(text) }
