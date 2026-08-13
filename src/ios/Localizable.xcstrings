@@ -233,6 +233,15 @@
     "Avatar Settings Video Import" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Avatar Video Import" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "虚拟形象影片导入" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Avatar 影片匯入" } } }
     },
+    "Avatar Video Import Unsupported Format" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a supported video file such as MP4 or MOV." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请选择 MP4、MOV 等受支持的视频文件。" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇 MP4、MOV 等支援的影片檔案。" } } }
+    },
+    "Avatar Video Import iCloud Not Downloaded" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "This iCloud Drive video is not downloaded yet. Download it in Files, then try again." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "此 iCloud Drive 影片尚未下载。请先在“文件”中下载后再试。" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此 iCloud Drive 影片尚未下載。請先在「檔案」中下載後再試。" } } }
+    },
+    "Avatar Video Import Unavailable" : {
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected video is unavailable. Try downloading it again from Files." } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所选影片无法使用。请尝试在“文件”中重新下载。" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "所選影片無法使用。請嘗試在「檔案」中重新下載。" } } }
+    },
     "Avatar Settings Video Mapping" : {
       "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Video Mapping" } }, "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "影片设置" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "影片設定" } } }
     },

@@ -1,6 +1,7 @@
 import AVFoundation
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 extension Notification.Name {
     static let soulNestAvatarPresentation = Notification.Name("soulnest.avatar.presentation")
@@ -101,20 +102,67 @@ final class NativeAvatarPreferences: ObservableObject {
     func hasVideoOverride(outfit: String, state: String) -> Bool {
         videoMappings["\(outfit)/\(state)"] != nil
     }
+
+    enum VideoImportError: LocalizedError {
+        case unsupportedFormat
+        case iCloudFileNotDownloaded
+        case unavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedFormat:
+                return String(localized: "Avatar Video Import Unsupported Format")
+            case .iCloudFileNotDownloaded:
+                return String(localized: "Avatar Video Import iCloud Not Downloaded")
+            case .unavailable:
+                return String(localized: "Avatar Video Import Unavailable")
+            }
+        }
+    }
+
+    static func supportsVideo(at url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
+        return type.conforms(to: .movie) || type.conforms(to: .audiovisualContent)
+    }
+
     func importVideo(from source: URL, outfit: String, state: String, originalFilename: String? = nil) async throws {
+        guard Self.supportsVideo(at: source) else { throw VideoImportError.unsupportedFormat }
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
-        let asset = AVURLAsset(url: source)
-        guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)), !(try await asset.loadTracks(withMediaType: .video)).isEmpty else {
-            throw CocoaError(.fileReadCorruptFile)
+
+        let resourceValues = try source.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
+        if resourceValues.isUbiquitousItem == true,
+           resourceValues.ubiquitousItemDownloadingStatus != .current {
+            throw VideoImportError.iCloudFileNotDownloaded
         }
+
         let base = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
             .appendingPathComponent("SoulNest/AvatarAssets/custom/\(outfit)", isDirectory: true)
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        let ext = source.pathExtension.isEmpty ? "mp4" : source.pathExtension
+        let ext = source.pathExtension.lowercased()
         let destination = base.appendingPathComponent("\(state).\(ext)")
+        let staged = base.appendingPathComponent(".\(UUID().uuidString).\(ext)")
+        defer { try? FileManager.default.removeItem(at: staged) }
+
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinationError) { readableURL in
+            do {
+                try FileManager.default.copyItem(at: readableURL, to: staged)
+            } catch {
+                copyError = error
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        if let copyError { throw copyError }
+        guard FileManager.default.isReadableFile(atPath: staged.path) else { throw VideoImportError.unavailable }
+
+        let asset = AVURLAsset(url: staged)
+        guard try await asset.load(.isPlayable), !(try await asset.load(.hasProtectedContent)), !(try await asset.loadTracks(withMediaType: .video)).isEmpty else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
         try? FileManager.default.removeItem(at: destination)
-        try FileManager.default.copyItem(at: source, to: destination)
+        try FileManager.default.moveItem(at: staged, to: destination)
         guard FileManager.default.isReadableFile(atPath: destination.path) else { throw CocoaError(.fileReadNoPermission) }
         let key = "\(outfit)/\(state)"
         videoMappings[key] = destination.path
