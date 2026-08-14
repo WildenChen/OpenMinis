@@ -17,6 +17,25 @@ final class OpenClawBackendTests: XCTestCase {
         )
     }
 
+    func testRequestUsesExplicitOpenClawSessionHeaderAndKeepsUser() throws {
+        let session = AgentBackendSession(openMinisSessionID: "chat-A")
+        let request = try OpenClawBackend.urlRequest(
+            config: OpenClawBackendConfig(
+                baseURL: URL(string: "https://openclaw.example")!,
+                agentID: "yujie",
+                gatewayToken: "test-token"
+            ),
+            session: session,
+            body: ["user": session.externalSessionKey]
+        )
+
+        XCTAssertEqual(request.url?.absoluteString, "https://openclaw.example/v1/chat/completions")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "x-openclaw-session-key"), "soulnest:chat-A")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "x-openclaw-agent-id"), "yujie")
+        let body = try XCTUnwrap(request.httpBody)
+        XCTAssertEqual(try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])["user"] as? String, "soulnest:chat-A")
+    }
+
     // MARK: - Hermes adapter (#6, #7, #21)
 
     func testHermesProfileEndpointAndStableSessionHeaders() throws {
