@@ -4745,6 +4745,7 @@ private struct AvatarSettingsView: View {
     @State private var selectedOutfit = NativeAvatarOutfit.casual.rawValue
     @State private var importState: String?
     @State private var fileImportState: String?
+    @State private var isFilePickerPresented = false
     @State private var photoImportState: String?
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhotoVideo: PhotosPickerItem?
@@ -4863,6 +4864,7 @@ private struct AvatarSettingsView: View {
             Button("Avatar Settings Choose from Files") {
                 fileImportState = importState
                 importState = nil
+                DispatchQueue.main.async { isFilePickerPresented = true }
             }
             Button("Cancel", role: .cancel) { importState = nil }
         } message: {
@@ -4896,13 +4898,14 @@ private struct AvatarSettingsView: View {
                 }
             }
         }
-        .fileImporter(isPresented: Binding(get: { fileImportState != nil }, set: { if !$0 { fileImportState = nil } }), allowedContentTypes: [.item]) { result in
+        .fileImporter(isPresented: $isFilePickerPresented, allowedContentTypes: [.item]) { result in
             guard let state = fileImportState else { return }
             fileImportState = nil
             switch result {
             case .success(let url):
+                let outfit = selectedOutfit
                 Task { @MainActor in
-                    do { try await preferences.importVideo(from: url, outfit: selectedOutfit, state: state) }
+                    do { try await preferences.importVideo(from: url, outfit: outfit, state: state) }
                     catch { importError = error.localizedDescription }
                 }
             case .failure(let error): importError = error.localizedDescription
