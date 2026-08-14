@@ -353,16 +353,20 @@ struct NativeAvatarAssetResolver {
         emotion == .neutral ? ["neutral", "idle_01"] : [emotion.rawValue, "neutral", "idle_01"]
     }
 
+    static func presentationOverrideStates(state: String, emotion: NativeAvatarEmotion) -> [String] {
+        state == "idle_01" || state == "idle_02" ? emotionFallbackStates(emotion) : [state]
+    }
+
     static func url(outfit: String, state: String, emotion: NativeAvatarEmotion = .neutral) -> URL? {
-        if (state == "idle_01" || state == "idle_02"), emotion != .neutral {
-            for candidate in emotionFallbackStates(emotion) {
-                if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
-            }
+        let isIdle = state == "idle_01" || state == "idle_02"
+        for candidate in presentationOverrideStates(state: state, emotion: emotion) {
+            if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
+        }
+        if isIdle {
             for candidate in emotionFallbackStates(.neutral) {
                 if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: NativeAvatarOutfit.casual.rawValue, state: candidate) { return custom }
             }
         }
-        if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: state) { return custom }
         let root = avatarRoot()
         let manager = FileManager.default
         func file(_ outfit: String, _ state: String) -> URL? {

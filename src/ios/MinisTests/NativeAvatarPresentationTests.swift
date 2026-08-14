@@ -7,6 +7,21 @@ final class NativeAvatarPresentationTests: XCTestCase {
         XCTAssertEqual(NativeAvatarAssetResolver.emotionFallbackStates(.neutral), ["neutral", "idle_01"])
     }
 
+    func testIdlePresentationChecksSemanticEmotionOverrides() {
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "idle_01", emotion: .neutral),
+            ["neutral", "idle_01"]
+        )
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "idle_01", emotion: .happy),
+            ["happy", "neutral", "idle_01"]
+        )
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "thinking", emotion: .neutral),
+            ["thinking"]
+        )
+    }
+
     func testMissingAgentOutfitFallsBackToConfiguredDefault() {
         XCTAssertEqual(
             NativeAvatarPreferences.shared.resolvedOutfit("removed-outfit"),
