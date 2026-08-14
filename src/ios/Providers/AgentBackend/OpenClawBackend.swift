@@ -16,11 +16,12 @@ enum OpenClawBackendError: LocalizedError {
 /// OpenAI-compatible adapter for the OpenClaw gateway
 /// (`POST {base}/v1/chat/completions`, Bearer auth, SSE stream).
 ///
-/// Session continuity: the canonical OpenMinis chat id travels in the `user`
-/// field as `soulnest:<openminis-session-id>`, which the gateway derives a
-/// stable agent-session key from. Reopening the same OpenMinis chat therefore
-/// resumes the same OpenClaw session; a new OpenMinis chat gets a fresh one.
-/// No per-chat mapping is stored on the device.
+/// Session continuity: the canonical OpenMinis chat id travels as both the
+/// OpenAI-compatible `user` field and the explicit
+/// `x-openclaw-session-key` header, each set to
+/// `soulnest:<openminis-session-id>`. Reopening the same OpenMinis chat
+/// therefore resumes the same OpenClaw session; a new OpenMinis chat gets a
+/// fresh one. No per-chat mapping is stored on the device.
 ///
 /// Ownership: OpenMinis keeps device-tool execution and passes its tool set
 /// through unchanged; OpenClaw decides which of those tools to call and runs
@@ -73,22 +74,11 @@ struct OpenClawBackend: ExternalAgentBackend {
         if request.maxTokens > 0 {
             body["max_tokens"] = request.maxTokens
         }
-        logger.info("OpenClaw stream session=\(request.session.externalSessionKey) agent=\(config.agentID ?? "default") tools=\(request.tools.count)")
+        let req = try Self.urlRequest(config: config, session: request.session, body: body)
 
-        let url = config.baseURL
-            .appendingPathComponent("v1")
-            .appendingPathComponent("chat")
-            .appendingPathComponent("completions")
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = config.gatewayToken, !token.isEmpty {
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        }
-        if let agentID = config.agentID, !agentID.isEmpty {
-            req.setValue(agentID, forHTTPHeaderField: "x-openclaw-agent-id")
-        }
-        req.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        #if DEBUG
+        logger.debug("OpenClaw stream openMinisSessionID=\(request.session.openMinisSessionID) externalSessionKey=\(request.session.externalSessionKey) agent=\(config.agentID ?? "default") target=\(model.id) tools=\(request.tools.count)")
+        #endif
 
         let (byteStream, response) = try await Self.session.bytes(for: req)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -112,6 +102,33 @@ struct OpenClawBackend: ExternalAgentBackend {
             continuation.onTermination = { _ in task.cancel() }
         }
         return Self.parseSSE(lineStream)
+    }
+
+    /// Pure request construction helper retained at internal visibility for
+    /// focused adapter tests. The same canonical key must be sent on every
+    /// normal, retry, and tool-result request because each reuses its
+    /// `AgentBackendRequest`.
+    static func urlRequest(
+        config: OpenClawBackendConfig,
+        session: AgentBackendSession,
+        body: [String: Any]
+    ) throws -> URLRequest {
+        let url = config.baseURL
+            .appendingPathComponent("v1")
+            .appendingPathComponent("chat")
+            .appendingPathComponent("completions")
+        var result = URLRequest(url: url)
+        result.httpMethod = "POST"
+        result.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        result.setValue(session.externalSessionKey, forHTTPHeaderField: "x-openclaw-session-key")
+        if let token = config.gatewayToken, !token.isEmpty {
+            result.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let agentID = config.agentID, !agentID.isEmpty {
+            result.setValue(agentID, forHTTPHeaderField: "x-openclaw-agent-id")
+        }
+        result.httpBody = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        return result
     }
 
     // MARK: - SSE Parsing
