@@ -8,30 +8,49 @@ extension Notification.Name {
 }
 
 enum NativeAvatarOutfit: String, CaseIterable, Identifiable {
-    case casual, office, pajamas, shorts
+    case casual, office
     var id: String { rawValue }
     var displayName: String {
-        switch rawValue {
-        case "casual": return String(localized: "Avatar Outfit Casual")
-        case "office": return String(localized: "Avatar Outfit Office")
-        case "pajamas": return String(localized: "Avatar Outfit Pajamas")
-        default: return String(localized: "Avatar Outfit Shorts")
+        switch self {
+        case .casual: return String(localized: "Avatar Outfit Casual")
+        case .office: return String(localized: "Avatar Outfit Office")
         }
     }
 }
 
 enum NativeAvatarEmotion: String, CaseIterable {
-    case neutral, happy, shy, angry, sad
+    case neutral
+    case alternateIdle = "idle_02"
+    case thinking
+    case talking = "talk_soft"
+    case happy
+    case excited
+    case shy
+    case angry
+    case sad
+    case caring
 
-    var mediaState: String { self == .neutral ? "idle_01" : rawValue }
+    var mediaStates: [String] {
+        switch self {
+        case .neutral: return ["neutral", "idle_01"]
+        case .happy: return ["happy", "talk_happy"]
+        case .excited: return ["excited", "talk_excited"]
+        default: return [rawValue]
+        }
+    }
 
     var displayName: String {
         switch self {
         case .neutral: return String(localized: "Avatar Emotion Neutral")
+        case .alternateIdle: return String(localized: "Avatar State Idle 2")
+        case .thinking: return String(localized: "Avatar State Thinking")
+        case .talking: return String(localized: "Avatar State Talk Soft")
         case .happy: return String(localized: "Avatar Emotion Happy")
+        case .excited: return String(localized: "Avatar State Talk Excited")
         case .shy: return String(localized: "Avatar State Shy")
         case .angry: return String(localized: "Avatar State Angry")
         case .sad: return String(localized: "Avatar State Sad")
+        case .caring: return String(localized: "Avatar State Caring")
         }
     }
 }
@@ -148,12 +167,14 @@ final class NativeAvatarPreferences: ObservableObject {
         return FileManager.default.fileExists(atPath: url.path) && FileManager.default.isReadableFile(atPath: url.path) ? url : nil
     }
     func mappingOriginalFilename(outfit: String, state: String) -> String? {
-        let key = "\(outfit)/\(state)"
-        if let filename = videoMappingMetadata[key]?["originalFilename"], !filename.isEmpty { return filename }
-        return videoMappings[key].map { URL(fileURLWithPath: $0).lastPathComponent }
+        mappingStates(for: state).lazy.compactMap { candidate -> String? in
+            let key = "\(outfit)/\(candidate)"
+            if let filename = self.videoMappingMetadata[key]?["originalFilename"], !filename.isEmpty { return filename }
+            return self.videoMappings[key].map { URL(fileURLWithPath: $0).lastPathComponent }
+        }.first
     }
     func hasVideoOverride(outfit: String, state: String) -> Bool {
-        videoMappings["\(outfit)/\(state)"] != nil
+        mappingStates(for: state).contains { videoMappings["\(outfit)/\($0)"] != nil }
     }
 
     enum VideoImportError: LocalizedError {
@@ -222,7 +243,7 @@ final class NativeAvatarPreferences: ObservableObject {
         videoMappingMetadata[key] = ["originalFilename": originalFilename ?? source.lastPathComponent]
     }
     func removeVideoOverride(outfit: String, state: String) {
-        removeVideoOverride(forKey: "\(outfit)/\(state)")
+        mappingStates(for: state).forEach { removeVideoOverride(forKey: "\(outfit)/\($0)") }
     }
     func removeOutfitOverrides(outfit: String) {
         videoMappings.keys.filter { $0.hasPrefix("\(outfit)/") }.forEach(removeVideoOverride(forKey:))
@@ -249,6 +270,9 @@ final class NativeAvatarPreferences: ObservableObject {
         guard let support = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: false) else { return false }
         let customRoot = support.appendingPathComponent("SoulNest/AvatarAssets/custom", isDirectory: true).standardizedFileURL.path + "/"
         return url.standardizedFileURL.path.hasPrefix(customRoot)
+    }
+    private func mappingStates(for state: String) -> [String] {
+        NativeAvatarEmotion(rawValue: state)?.mediaStates ?? [state]
     }
 }
 
@@ -350,19 +374,23 @@ struct NativeAvatarAssetResolver {
     }
 
     static func emotionFallbackStates(_ emotion: NativeAvatarEmotion) -> [String] {
-        emotion == .neutral ? ["neutral", "idle_01"] : [emotion.rawValue, "neutral", "idle_01"]
+        emotion == .neutral ? emotion.mediaStates : emotion.mediaStates + NativeAvatarEmotion.neutral.mediaStates
+    }
+
+    static func presentationOverrideStates(state: String, emotion: NativeAvatarEmotion) -> [String] {
+        state == "idle_01" || state == "idle_02" ? emotionFallbackStates(emotion) : [state]
     }
 
     static func url(outfit: String, state: String, emotion: NativeAvatarEmotion = .neutral) -> URL? {
-        if (state == "idle_01" || state == "idle_02"), emotion != .neutral {
-            for candidate in emotionFallbackStates(emotion) {
-                if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
-            }
+        let isIdle = state == "idle_01" || state == "idle_02"
+        for candidate in presentationOverrideStates(state: state, emotion: emotion) {
+            if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
+        }
+        if isIdle {
             for candidate in emotionFallbackStates(.neutral) {
                 if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: NativeAvatarOutfit.casual.rawValue, state: candidate) { return custom }
             }
         }
-        if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: state) { return custom }
         let root = avatarRoot()
         let manager = FileManager.default
         func file(_ outfit: String, _ state: String) -> URL? {
@@ -370,7 +398,7 @@ struct NativeAvatarAssetResolver {
             let url = root.appendingPathComponent("assets/videos/yujie-v1/\(outfit)/\(state).mp4")
             return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
         }
-        let selectedOutfit = outfit == "shorts" ? "shorts_private_casual" : outfit
+        let selectedOutfit = outfit
         if (state == "idle_01" || state == "idle_02"), emotion != .neutral,
            let url = file(selectedOutfit, emotion.rawValue)
             ?? file(selectedOutfit, "idle_01")
@@ -524,7 +552,7 @@ private struct NativeAvatarDiagnosticsOverlay: View {
 }
 #endif
 
-private struct NativeAvatarPlayer: UIViewRepresentable {
+struct NativeAvatarPlayer: UIViewRepresentable {
     let url: URL?
     let looping: Bool
     let onFinished: () -> Void

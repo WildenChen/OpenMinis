@@ -2,9 +2,37 @@ import XCTest
 
 @MainActor
 final class NativeAvatarPresentationTests: XCTestCase {
+    func testBuiltInOutfitsAreLimitedToCasualAndOffice() {
+        XCTAssertEqual(NativeAvatarOutfit.allCases, [.casual, .office])
+    }
+
     func testEmotionFallbackUsesOutfitNeutralThenGlobalNeutral() {
+        XCTAssertEqual(NativeAvatarAssetResolver.emotionFallbackStates(.happy), ["happy", "talk_happy", "neutral", "idle_01"])
+        XCTAssertEqual(NativeAvatarAssetResolver.emotionFallbackStates(.excited), ["excited", "talk_excited", "neutral", "idle_01"])
         XCTAssertEqual(NativeAvatarAssetResolver.emotionFallbackStates(.shy), ["shy", "neutral", "idle_01"])
         XCTAssertEqual(NativeAvatarAssetResolver.emotionFallbackStates(.neutral), ["neutral", "idle_01"])
+    }
+
+    func testIdlePresentationChecksSemanticEmotionOverrides() {
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "idle_01", emotion: .neutral),
+            ["neutral", "idle_01"]
+        )
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "idle_01", emotion: .happy),
+            ["happy", "talk_happy", "neutral", "idle_01"]
+        )
+        XCTAssertEqual(
+            NativeAvatarAssetResolver.presentationOverrideStates(state: "thinking", emotion: .neutral),
+            ["thinking"]
+        )
+    }
+
+    func testAvatarPickerAndAgentShareAllPresentationStates() {
+        XCTAssertEqual(
+            NativeAvatarEmotion.allCases.map(\.rawValue),
+            ["neutral", "idle_02", "thinking", "talk_soft", "happy", "excited", "shy", "angry", "sad", "caring"]
+        )
     }
 
     func testMissingAgentOutfitFallsBackToConfiguredDefault() {

@@ -4745,6 +4745,7 @@ private struct AvatarSettingsView: View {
     @State private var selectedOutfit = NativeAvatarOutfit.casual.rawValue
     @State private var importState: String?
     @State private var fileImportState: String?
+    @State private var isFilePickerPresented = false
     @State private var photoImportState: String?
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhotoVideo: PhotosPickerItem?
@@ -4752,6 +4753,7 @@ private struct AvatarSettingsView: View {
     @State private var customOutfitName = ""
     @State private var showCustomOutfitPrompt = false
     @State private var outfitPendingDeletion: String?
+    @State private var preview: AvatarVideoPreview?
     private let states = NativeAvatarEmotion.allCases.map(\.rawValue) + NativeAvatarTouchRegion.allCases.map(\.mediaState)
 
     var body: some View {
@@ -4797,6 +4799,19 @@ private struct AvatarSettingsView: View {
                             }
                         }
                         Spacer()
+                        Button {
+                            if let url = previewURL(for: state) {
+                                preview = AvatarVideoPreview(
+                                    title: preferences.stateDisplayName(for: state),
+                                    url: url
+                                )
+                            }
+                        } label: {
+                            Image(systemName: "play.rectangle")
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(previewURL(for: state) == nil)
+                        .accessibilityLabel("Preview")
                         if preferences.hasVideoOverride(outfit: selectedOutfit, state: state) {
                             Button(String(localized: "Avatar Settings Restore Default")) {
                                 preferences.removeVideoOverride(outfit: selectedOutfit, state: state)
@@ -4824,6 +4839,9 @@ private struct AvatarSettingsView: View {
         }
         .navigationTitle("Avatar Settings")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $preview) { preview in
+            AvatarVideoPreviewSheet(preview: preview)
+        }
         .alert("Avatar Settings Add Custom Outfit", isPresented: $showCustomOutfitPrompt) {
             TextField("Avatar Settings Outfit Name", text: $customOutfitName)
             Button("Avatar Settings Add") {
@@ -4846,6 +4864,7 @@ private struct AvatarSettingsView: View {
             Button("Avatar Settings Choose from Files") {
                 fileImportState = importState
                 importState = nil
+                DispatchQueue.main.async { isFilePickerPresented = true }
             }
             Button("Cancel", role: .cancel) { importState = nil }
         } message: {
@@ -4879,13 +4898,14 @@ private struct AvatarSettingsView: View {
                 }
             }
         }
-        .fileImporter(isPresented: Binding(get: { fileImportState != nil }, set: { if !$0 { fileImportState = nil } }), allowedContentTypes: [.mpeg4Movie, .movie, .quickTimeMovie]) { result in
+        .fileImporter(isPresented: $isFilePickerPresented, allowedContentTypes: [.item]) { result in
             guard let state = fileImportState else { return }
             fileImportState = nil
             switch result {
             case .success(let url):
+                let outfit = selectedOutfit
                 Task { @MainActor in
-                    do { try await preferences.importVideo(from: url, outfit: selectedOutfit, state: state) }
+                    do { try await preferences.importVideo(from: url, outfit: outfit, state: state) }
                     catch { importError = error.localizedDescription }
                 }
             case .failure(let error): importError = error.localizedDescription
@@ -4904,6 +4924,42 @@ private struct AvatarSettingsView: View {
         return preferences.isBuiltIn(selectedOutfit)
             ? String(localized: "Avatar Settings Default")
             : String(localized: "Avatar Settings Not Configured")
+    }
+
+    private func previewURL(for state: String) -> URL? {
+        if let region = NativeAvatarTouchRegion.allCases.first(where: { $0.mediaState == state }) {
+            return NativeAvatarAssetResolver.reactionURL(outfit: selectedOutfit, region: region)
+        }
+        if let emotion = NativeAvatarEmotion(rawValue: state) {
+            return NativeAvatarAssetResolver.url(outfit: selectedOutfit, state: "idle_01", emotion: emotion)
+        }
+        return NativeAvatarAssetResolver.url(outfit: selectedOutfit, state: state)
+    }
+}
+
+private struct AvatarVideoPreview: Identifiable {
+    let id = UUID()
+    let title: String
+    let url: URL
+}
+
+private struct AvatarVideoPreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let preview: AvatarVideoPreview
+
+    var body: some View {
+        NavigationStack {
+            NativeAvatarPlayer(url: preview.url, looping: true, onFinished: {})
+                .background(.black)
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle(preview.title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Close") { dismiss() }
+                    }
+                }
+        }
     }
 }
 

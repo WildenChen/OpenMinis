@@ -12,13 +12,19 @@ from pathlib import Path
 
 
 def stage_pack(source: Path, app: Path) -> None:
-    if not (source / "casual" / "idle_01.mp4").is_file():
-        raise SystemExit("private pack must contain casual/idle_01.mp4")
+    built_in_videos = (
+        Path("casual/idle_01.mp4"),
+        Path("office/idle_01.mp4"),
+    )
+    if missing := [str(path) for path in built_in_videos if not (source / path).is_file()]:
+        raise SystemExit(f"private pack is missing required built-in videos: {', '.join(missing)}")
     target = app / "Avatar" / "assets" / "videos" / source.name
     if target.exists():
         shutil.rmtree(target)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, target, ignore=shutil.ignore_patterns("*.source.mp4", "stills"))
+    for relative_path in built_in_videos:
+        destination = target / relative_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source / relative_path, destination)
 
 
 def main() -> None:
