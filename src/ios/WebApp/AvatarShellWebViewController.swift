@@ -69,17 +69,18 @@ enum NativeAvatarTouchRegion: String, CaseIterable {
         }
     }
 
+    static let normalizedAreas: [(region: Self, rect: CGRect)] = [
+        (.head, CGRect(x: 0.28, y: 0.06, width: 0.44, height: 0.27)),
+        (.handArm, CGRect(x: 0.05, y: 0.31, width: 0.22, height: 0.38)),
+        (.handArm, CGRect(x: 0.73, y: 0.31, width: 0.22, height: 0.38)),
+        (.upperBody, CGRect(x: 0.28, y: 0.33, width: 0.44, height: 0.35)),
+        (.lowerBody, CGRect(x: 0.22, y: 0.68, width: 0.56, height: 0.32)),
+    ]
+
     static func hit(at point: CGPoint, in size: CGSize) -> Self? {
         guard size.width > 0, size.height > 0 else { return nil }
         let normalized = CGPoint(x: point.x / size.width, y: point.y / size.height)
-        let areas: [(Self, CGRect)] = [
-            (.head, CGRect(x: 0.28, y: 0.06, width: 0.44, height: 0.27)),
-            (.handArm, CGRect(x: 0.05, y: 0.31, width: 0.22, height: 0.38)),
-            (.handArm, CGRect(x: 0.73, y: 0.31, width: 0.22, height: 0.38)),
-            (.upperBody, CGRect(x: 0.28, y: 0.33, width: 0.44, height: 0.35)),
-            (.lowerBody, CGRect(x: 0.22, y: 0.68, width: 0.56, height: 0.32)),
-        ]
-        return areas.first(where: { $0.1.contains(normalized) })?.0
+        return normalizedAreas.first(where: { $0.rect.contains(normalized) })?.region
     }
 }
 
@@ -284,17 +285,20 @@ enum SoulNestAvatarPresentation {
 
     static func thinking() {
         cancelPendingTextOnlyIdle()
+        post(action: "clearSubtitle", value: nil)
         post(action: "state", value: "thinking")
     }
     static func talking(subtitle: String? = nil) {
         cancelPendingTextOnlyIdle()
         post(action: "state", value: "talk_soft")
-        if let subtitle, !subtitle.isEmpty { post(action: "subtitle", value: subtitle) }
+        if let subtitle, !subtitle.isEmpty {
+            post(action: "subtitle", value: NativeAvatarSubtitle.displayText(subtitle))
+        }
     }
     static func responseCompleted(_ text: String, hasTTSPlayback: Bool) {
         cancelPendingTextOnlyIdle()
         guard !text.isEmpty else { idle(); return }
-        post(action: "say", value: text)
+        post(action: "say", value: NativeAvatarSubtitle.displayText(text))
         guard !hasTTSPlayback else { return }
         let work = DispatchWorkItem {
             pendingTextOnlyIdle = nil
@@ -323,7 +327,10 @@ enum SoulNestAvatarPresentation {
         if let emotion, let parsed = NativeAvatarEmotion(rawValue: emotion) {
             let isAvailable = mediaAvailable?(resolvedOutfit, parsed)
                 ?? NativeAvatarAssetResolver.hasExplicitMedia(outfit: resolvedOutfit, emotion: parsed)
-            guard isAvailable else { return "Ignored unavailable Avatar presentation." }
+            guard isAvailable else {
+                post(action: "notice", value: String(localized: "Avatar presentation unavailable"))
+                return "Ignored unavailable Avatar presentation."
+            }
         }
         var info: [String: Any] = ["action": "agentPresentation", "outfit": resolvedOutfit]
         if let emotion { info["emotion"] = emotion }
@@ -342,6 +349,38 @@ enum SoulNestAvatarPresentation {
     }
 }
 
+enum NativeAvatarSubtitle {
+    static let characterLimit = 800
+
+    static func displayText(_ text: String) -> String {
+        guard text.count > characterLimit else { return text }
+        return String(text.suffix(characterLimit))
+    }
+}
+
+enum NativeAvatarVoiceState: Equatable {
+    case idle
+    case starting
+    case listening
+    case processing
+    case failed(String)
+
+    var isActive: Bool {
+        switch self {
+        case .idle: return false
+        case .starting, .listening, .processing, .failed: return true
+        }
+    }
+}
+
+enum NativeAvatarComposer {
+    static func submit(_ rawText: String, using sender: (String) -> Bool) -> (accepted: Bool, remainingText: String) {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return (false, rawText) }
+        return sender(text) ? (true, "") : (false, rawText)
+    }
+}
+
 @MainActor
 final class NativeAvatarState: ObservableObject {
     @Published var state = "idle_01"
@@ -349,10 +388,12 @@ final class NativeAvatarState: ObservableObject {
     @Published var emotion: NativeAvatarEmotion = .neutral
     @Published var requestedOutfit: String?
     @Published var reaction: NativeAvatarTouchRegion?
+    @Published var notice = ""
 
     func beginReaction(_ region: NativeAvatarTouchRegion) { reaction = region }
     func finishReaction() { reaction = nil }
     private var observer: NSObjectProtocol?
+    private var noticeTask: Task<Void, Never>?
     init() {
         observer = NotificationCenter.default.addObserver(forName: .soulNestAvatarPresentation, object: nil, queue: .main) { [weak self] note in
             guard let self, let action = note.userInfo?["action"] as? String else { return }
@@ -362,6 +403,14 @@ final class NativeAvatarState: ObservableObject {
             case "subtitle": self.subtitle = value
             case "say": self.state = "talk_soft"; self.subtitle = value
             case "clearSubtitle": self.subtitle = ""
+            case "notice":
+                self.notice = value
+                self.noticeTask?.cancel()
+                self.noticeTask = Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    guard !Task.isCancelled else { return }
+                    self?.notice = ""
+                }
             case "agentPresentation":
                 if let emotion = note.userInfo?["emotion"] as? String,
                    let parsed = NativeAvatarEmotion(rawValue: emotion) {
@@ -372,7 +421,10 @@ final class NativeAvatarState: ObservableObject {
             }
         }
     }
-    deinit { if let observer { NotificationCenter.default.removeObserver(observer) } }
+    deinit {
+        noticeTask?.cancel()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+    }
 }
 
 @MainActor
@@ -653,12 +705,20 @@ struct NativeAvatarPlayer: UIViewRepresentable {
 
 struct NativeAvatarView: View {
     let onClose: () -> Void
-    let onSend: (String) -> Void
+    let onSend: (String) -> Bool
     let onMic: () -> Void
+    let isReadOnly: Bool
+    let isAgentBusy: Bool
+    let voiceState: NativeAvatarVoiceState
+    let errorMessage: String?
+    let noticeMessage: String?
+    let onDismissError: () -> Void
+    let onDismissNotice: () -> Void
     @StateObject private var avatar = NativeAvatarState()
     @ObservedObject private var preferences = NativeAvatarPreferences.shared
     @State private var outfit = NativeAvatarOutfit.casual.rawValue
     @State private var input = ""
+    @State private var localNotice = ""
     private let testEmotions = NativeAvatarEmotion.allCases
 #if DEBUG
     @State private var showsDiagnostics = false
@@ -672,19 +732,33 @@ struct NativeAvatarView: View {
                     if avatar.reaction != nil { avatar.finishReaction() } else { avatar.state = "idle_01" }
                 }
                     .ignoresSafeArea()
+                    .accessibilityLabel(Text("Avatar Settings"))
+                    .accessibilityHint(Text("Avatar touch reaction hint"))
+                    .accessibilityAddTraits(.isImage)
+                    .accessibilityAction(named: Text(NativeAvatarTouchRegion.head.displayName)) { beginReaction(.head) }
+                    .accessibilityAction(named: Text(NativeAvatarTouchRegion.upperBody.displayName)) { beginReaction(.upperBody) }
+                    .accessibilityAction(named: Text(NativeAvatarTouchRegion.handArm.displayName)) { beginReaction(.handArm) }
+                    .accessibilityAction(named: Text(NativeAvatarTouchRegion.lowerBody.displayName)) { beginReaction(.lowerBody) }
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { tap in
-                        guard let region = NativeAvatarTouchRegion.hit(at: tap.location, in: proxy.size),
-                              NativeAvatarAssetResolver.reactionURL(outfit: outfit, region: region) != nil else { return }
-                        avatar.beginReaction(region)
+                        guard let region = NativeAvatarTouchRegion.hit(at: tap.location, in: proxy.size) else { return }
+                        beginReaction(region)
                     })
                 VStack {
-                    HStack { Button(action: onClose) { Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle()) }; Spacer()
+                    HStack {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark")
+                                .font(.headline)
+                                .padding(12)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .accessibilityLabel(Text("Close"))
+                        Spacer()
 #if DEBUG
                     Button("診斷") { showsDiagnostics.toggle() }.font(.caption).padding(8).background(.ultraThinMaterial, in: Capsule())
 #endif
-                    Picker("Outfit", selection: $outfit) { ForEach(preferences.outfits.filter(preferences.isEnabled), id: \.self) { Text(preferences.displayName(for: $0)).tag($0) } }.pickerStyle(.menu) }
+                    Picker(String(localized: "Avatar Settings Outfit"), selection: $outfit) { ForEach(preferences.outfits.filter(preferences.isEnabled), id: \.self) { Text(preferences.displayName(for: $0)).tag($0) } }.pickerStyle(.menu) }
                     .padding(.horizontal)
                     // The NativeAvatarView itself now respects the host safe
                     // area. Adding proxy.safeAreaInsets.top here would apply
@@ -701,9 +775,31 @@ struct NativeAvatarView: View {
                         .pickerStyle(.menu)
                     }
                     .padding(.horizontal)
+                    if let errorMessage, !errorMessage.isEmpty {
+                        avatarBanner(errorMessage, isError: true, dismiss: onDismissError)
+                    } else if let notice = visibleNotice, !notice.isEmpty {
+                        avatarBanner(notice, isError: false, dismiss: dismissNotice)
+                    }
                     Spacer()
-                    if !avatar.subtitle.isEmpty || avatar.state == "thinking" { Text(avatar.subtitle.isEmpty ? "思考中…" : avatar.subtitle).multilineTextAlignment(.center).padding(12).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16)).padding(.horizontal) }
-                    HStack { Button(action: onMic) { Image(systemName: "mic.fill") }; TextField("輸入訊息…", text: $input).submitLabel(.send).onSubmit(send); Button(action: send) { Image(systemName: "arrow.up.circle.fill") } }.padding().background(.ultraThinMaterial).clipShape(Capsule()).padding()
+                    if let voiceStatusText {
+                        Label(voiceStatusText, systemImage: voiceState == .processing ? "waveform.badge.magnifyingglass" : "waveform")
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(2)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    if !avatar.subtitle.isEmpty || avatar.state == "thinking" {
+                        Text(avatar.subtitle.isEmpty ? String(localized: "Avatar State Thinking") : avatar.subtitle)
+                            .lineLimit(5)
+                            .truncationMode(.head)
+                            .multilineTextAlignment(.center)
+                            .padding(12)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            .padding(.horizontal)
+                            .accessibilityLabel(Text(avatar.subtitle.isEmpty ? String(localized: "Avatar State Thinking") : avatar.subtitle))
+                    }
+                    composer
                 }
 #if DEBUG
                 if showsDiagnostics { NativeAvatarDiagnosticsOverlay { showsDiagnostics = false }.zIndex(10).allowsHitTesting(true) }
@@ -723,5 +819,99 @@ struct NativeAvatarView: View {
         }
         .onDisappear { avatar.subtitle = "" }
     }
-    private func send() { let text = input.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty else { return }; input = ""; onSend(text) }
+
+    private var visibleNotice: String? {
+        if !avatar.notice.isEmpty { return avatar.notice }
+        if let noticeMessage, !noticeMessage.isEmpty { return noticeMessage }
+        return localNotice.isEmpty ? nil : localNotice
+    }
+
+    private var voiceStatusText: String? {
+        switch voiceState {
+        case .idle: return nil
+        case .starting: return String(localized: "Avatar Voice Starting")
+        case .listening: return String(localized: "Avatar Voice Listening")
+        case .processing: return String(localized: "Avatar Voice Transcribing")
+        case .failed(let message): return message
+        }
+    }
+
+    private var composer: some View {
+        HStack {
+            Button(action: onMic) {
+                Image(systemName: voiceState.isActive ? "stop.circle.fill" : "mic.fill")
+            }
+            .disabled(isReadOnly || (isAgentBusy && !voiceState.isActive))
+            .accessibilityLabel(Text(microphoneAccessibilityLabel))
+
+            TextField(String(localized: "Message"), text: $input)
+                .submitLabel(.send)
+                .onSubmit(send)
+                .disabled(isReadOnly)
+
+            Button(action: send) {
+                Image(systemName: isAgentBusy ? "text.badge.plus" : "arrow.up.circle.fill")
+            }
+            .disabled(isReadOnly || input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel(Text(sendAccessibilityLabel))
+        }
+        .padding()
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+        .padding()
+    }
+
+    private func avatarBanner(_ message: String, isError: Bool, dismiss: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: isError ? "exclamationmark.triangle.fill" : "info.circle.fill")
+            Text(message)
+                .font(.caption)
+                .lineLimit(3)
+            Spacer()
+            Button(action: dismiss) {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel(Text("Close"))
+        }
+        .foregroundStyle(isError ? Color.red : Color.primary)
+        .padding(10)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+
+    private func beginReaction(_ region: NativeAvatarTouchRegion) {
+        guard NativeAvatarAssetResolver.reactionURL(outfit: outfit, region: region) != nil else {
+            localNotice = String(localized: "Avatar Reaction Unavailable")
+            return
+        }
+        avatar.beginReaction(region)
+    }
+
+    private func dismissNotice() {
+        avatar.notice = ""
+        localNotice = ""
+        onDismissNotice()
+    }
+
+    private func send() {
+        let result = NativeAvatarComposer.submit(input, using: onSend)
+        input = result.remainingText
+        if !result.accepted {
+            localNotice = isReadOnly
+                ? String(localized: "Read-only")
+                : String(localized: "Avatar Message Not Sent")
+        } else {
+            localNotice = ""
+        }
+    }
+
+    private var microphoneAccessibilityLabel: String {
+        voiceState.isActive
+            ? String(localized: "Avatar Stop Listening")
+            : String(localized: "Avatar Start Listening")
+    }
+
+    private var sendAccessibilityLabel: String {
+        isAgentBusy ? String(localized: "Avatar Queue Message") : String(localized: "Send")
+    }
 }

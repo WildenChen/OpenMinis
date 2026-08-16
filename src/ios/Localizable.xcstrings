@@ -4,6 +4,76 @@
     "" : {
 
     },
+    "Avatar Message Not Sent" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Message not sent. Try again." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "消息未发送，请重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訊息未送出，請再試一次。" } }
+      }
+    },
+    "Avatar presentation unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "That Avatar state is not configured. The current presentation was kept." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "尚未配置该虚拟形象状态，已保留当前画面。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "尚未設定該 Avatar 狀態，已保留目前畫面。" } }
+      }
+    },
+    "Avatar Queue Message" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Queue Message" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将消息加入队列" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將訊息加入佇列" } }
+      }
+    },
+    "Avatar Reaction Unavailable" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No reaction is configured for this area." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "该区域尚未配置互动反应。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "該區域尚未設定互動反應。" } }
+      }
+    },
+    "Avatar Start Listening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start Listening" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始聆听" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開始聆聽" } }
+      }
+    },
+    "Avatar Stop Listening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop Listening" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "停止聆听" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止聆聽" } }
+      }
+    },
+    "Avatar touch reaction hint" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use custom actions to play available touch reactions." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用自定义操作播放已配置的触摸反应。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用自訂動作播放已設定的觸碰反應。" } }
+      }
+    },
+    "Avatar Voice Listening" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Listening…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "聆听中…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "聆聽中…" } }
+      }
+    },
+    "Avatar Voice Starting" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Starting microphone…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在启动麦克风…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在啟動麥克風…" } }
+      }
+    },
+    "Avatar Voice Transcribing" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Transcribing…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在转录…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在轉錄…" } }
+      }
+    },
     "Avatar Outfit Casual" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Casual" } },

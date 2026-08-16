@@ -68,6 +68,11 @@ final class DeepLinkCoordinator: ObservableObject {
     /// session list if the id isn't already loaded).
     @Published var pendingSessionId: String?
 
+    /// One-shot request to present the immersive Avatar from the currently
+    /// active chat. ContentView ensures a chat is mounted; AIChatView consumes
+    /// the flag only after its real session/view model is available.
+    @Published var pendingAvatarPresentation = false
+
     /// When `pendingSettingsTarget == .logs`, this carries the optional
     /// `tab` query parameter from `minis://settings/logs?tab=…`. The
     /// LogManagementView reads it on appear to land on the right

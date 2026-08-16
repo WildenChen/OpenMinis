@@ -109,7 +109,7 @@ enum OpenClawStreamReliability {
                         continuation.finish()
                         return
                     } catch is CancellationError {
-                        await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
+                        await MainActor.run { SoulNestAvatarPresentation.idle() }
                         continuation.finish(throwing: CancellationError())
                         return
                     } catch {
@@ -124,17 +124,17 @@ enum OpenClawStreamReliability {
                                 try await Task.sleep(nanoseconds: delay * 1_000_000_000)
                                 continue
                             } catch {
-                                await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
+                                await MainActor.run { SoulNestAvatarPresentation.idle() }
                                 continuation.finish(throwing: CancellationError())
                                 return
                             }
                         }
-                        await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
+                        await MainActor.run { SoulNestAvatarPresentation.idle() }
                         continuation.finish(throwing: mapped)
                         return
                     }
                 }
-                await MainActor.run { SoulNestAvatarPresentation.idle(clearSubtitle: false) }
+                await MainActor.run { SoulNestAvatarPresentation.idle() }
                 continuation.finish(throwing: CancellationError())
             }
             continuation.onTermination = { _ in task.cancel() }
