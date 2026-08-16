@@ -280,6 +280,7 @@ final class NativeAvatarPreferences: ObservableObject {
 enum SoulNestAvatarPresentation {
     private static let textOnlyIdleDelay: TimeInterval = 1.5
     private static var pendingTextOnlyIdle: DispatchWorkItem?
+    private static var activeOutfit: String?
 
     static func thinking() {
         cancelPendingTextOnlyIdle()
@@ -307,13 +308,26 @@ enum SoulNestAvatarPresentation {
         post(action: "state", value: "idle_01")
         if clearSubtitle { post(action: "clearSubtitle", value: nil) }
     }
-    static func agentPresentation(emotion: String?, outfit: String?) -> String {
+    static func setActiveOutfit(_ outfit: String) {
+        activeOutfit = NativeAvatarPreferences.shared.resolvedOutfit(outfit)
+    }
+    static func agentPresentation(
+        emotion: String?,
+        outfit: String?,
+        mediaAvailable: ((String, NativeAvatarEmotion) -> Bool)? = nil
+    ) -> String {
         guard emotion == nil || NativeAvatarEmotion(rawValue: emotion ?? "") != nil else {
             return "Ignored unsupported Avatar emotion."
         }
-        let resolvedOutfit = NativeAvatarPreferences.shared.resolvedOutfit(outfit)
+        let resolvedOutfit = NativeAvatarPreferences.shared.resolvedOutfit(outfit ?? activeOutfit)
+        if let emotion, let parsed = NativeAvatarEmotion(rawValue: emotion) {
+            let isAvailable = mediaAvailable?(resolvedOutfit, parsed)
+                ?? NativeAvatarAssetResolver.hasExplicitMedia(outfit: resolvedOutfit, emotion: parsed)
+            guard isAvailable else { return "Ignored unavailable Avatar presentation." }
+        }
         var info: [String: Any] = ["action": "agentPresentation", "outfit": resolvedOutfit]
         if let emotion { info["emotion"] = emotion }
+        activeOutfit = resolvedOutfit
         NotificationCenter.default.post(name: .soulNestAvatarPresentation, object: nil, userInfo: info)
         return "Avatar presentation updated."
     }
@@ -378,40 +392,88 @@ struct NativeAvatarAssetResolver {
     }
 
     static func presentationOverrideStates(state: String, emotion: NativeAvatarEmotion) -> [String] {
-        state == "idle_01" || state == "idle_02" ? emotionFallbackStates(emotion) : [state]
+        let requested = state == "idle_01" || state == "idle_02"
+            ? emotion.mediaStates
+            : (NativeAvatarEmotion(rawValue: state)?.mediaStates ?? [state])
+        return orderedUnique(requested + NativeAvatarEmotion.neutral.mediaStates)
     }
 
-    static func url(outfit: String, state: String, emotion: NativeAvatarEmotion = .neutral) -> URL? {
-        let isIdle = state == "idle_01" || state == "idle_02"
-        for candidate in presentationOverrideStates(state: state, emotion: emotion) {
-            if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate) { return custom }
+    static func hasExplicitMedia(
+        outfit: String,
+        emotion: NativeAvatarEmotion,
+        resourceURL: URL? = Bundle.main.resourceURL,
+        fileManager: FileManager = .default,
+        mappingURL: ((String, String) -> URL?)? = nil
+    ) -> Bool {
+        resolve(
+            outfit: outfit,
+            candidates: emotion.mediaStates,
+            resourceURL: resourceURL,
+            fileManager: fileManager,
+            mappingURL: mappingURL
+        ) != nil
+    }
+
+    static func url(
+        outfit: String,
+        state: String,
+        emotion: NativeAvatarEmotion = .neutral,
+        resourceURL: URL? = Bundle.main.resourceURL,
+        fileManager: FileManager = .default,
+        mappingURL: ((String, String) -> URL?)? = nil
+    ) -> URL? {
+        if let currentOutfitURL = resolve(
+            outfit: outfit,
+            candidates: presentationOverrideStates(state: state, emotion: emotion),
+            resourceURL: resourceURL,
+            fileManager: fileManager,
+            mappingURL: mappingURL
+        ) {
+            return currentOutfitURL
         }
-        if isIdle {
-            for candidate in emotionFallbackStates(.neutral) {
-                if let custom = NativeAvatarPreferences.shared.mappingURL(outfit: NativeAvatarOutfit.casual.rawValue, state: candidate) { return custom }
-            }
-        }
-        let root = avatarRoot()
-        let manager = FileManager.default
+
+        let globalOutfit = NativeAvatarOutfit.casual.rawValue
+        guard outfit != globalOutfit else { return nil }
+        return resolve(
+            outfit: globalOutfit,
+            candidates: NativeAvatarEmotion.neutral.mediaStates,
+            resourceURL: resourceURL,
+            fileManager: fileManager,
+            mappingURL: mappingURL
+        )
+    }
+
+    private static func resolve(
+        outfit: String,
+        candidates: [String],
+        resourceURL: URL?,
+        fileManager: FileManager,
+        mappingURL: ((String, String) -> URL?)?
+    ) -> URL? {
+        let root = avatarRoot(resourceURL: resourceURL, fileManager: fileManager)
         func file(_ outfit: String, _ state: String) -> URL? {
             guard let root else { return nil }
             let url = root.appendingPathComponent("assets/videos/yujie-v1/\(outfit)/\(state).mp4")
-            return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
+            return fileManager.fileExists(atPath: url.path) && fileManager.isReadableFile(atPath: url.path) ? url : nil
         }
-        let selectedOutfit = outfit
-        if (state == "idle_01" || state == "idle_02"), emotion != .neutral,
-           let url = file(selectedOutfit, emotion.rawValue)
-            ?? file(selectedOutfit, "idle_01")
-            ?? file("casual", "idle_01") {
-            return url
+        for candidate in orderedUnique(candidates) {
+            let custom: URL?
+            if let mappingURL {
+                custom = mappingURL(outfit, candidate)
+            } else {
+                custom = NativeAvatarPreferences.shared.mappingURL(outfit: outfit, state: candidate)
+            }
+            if let custom {
+                return custom
+            }
+            if let bundled = file(outfit, candidate) { return bundled }
         }
-        if let url = file(selectedOutfit, state) ?? file(selectedOutfit, state.hasPrefix("talk_") ? "talk_soft" : "idle_01") ?? file("casual", state) { return url }
-        let placeholder: String = switch state {
-        case "idle_01", "idle_02": "idle"; case "thinking": "thinking"; case "talk_happy": "happy"; case "talk_excited": "excited"; case "shy": "shy"; case "sad": "sad"; case "angry": "angry"; case "caring": "talking"; default: "talking"
-        }
-        guard let root else { return nil }
-        let url = root.appendingPathComponent("assets/videos/placeholder-\(placeholder).mp4")
-        return manager.fileExists(atPath: url.path) && manager.isReadableFile(atPath: url.path) ? url : nil
+        return nil
+    }
+
+    private static func orderedUnique(_ states: [String]) -> [String] {
+        var seen = Set<String>()
+        return states.filter { seen.insert($0).inserted }
     }
 
     static func reactionURL(outfit: String, region: NativeAvatarTouchRegion) -> URL? {
@@ -570,10 +632,10 @@ struct NativeAvatarPlayer: UIViewRepresentable {
         }
         func update(url: URL?, looping: Bool, onFinished: @escaping () -> Void) {
             self.looping = looping; self.onFinished = onFinished
+            guard let url else { return }
             guard current != url else { return }
             if let token { NotificationCenter.default.removeObserver(token) }
             current = url
-            guard let url else { player.replaceCurrentItem(with: nil); return }
             let item = AVPlayerItem(url: url); player.replaceCurrentItem(with: item)
 #if DEBUG
             Task { @MainActor in NativeAvatarDiagnostics.shared.observe(player: player, item: item, view: view) }
@@ -651,7 +713,11 @@ struct NativeAvatarView: View {
 #if DEBUG
         .onAppear { NativeAvatarDiagnostics.shared.captureRuntime(outfit: outfit, state: avatar.state) }
 #endif
-        .onAppear { outfit = preferences.resolvedDefaultOutfit }
+        .onAppear {
+            outfit = preferences.resolvedDefaultOutfit
+            SoulNestAvatarPresentation.setActiveOutfit(outfit)
+        }
+        .onChange(of: outfit) { SoulNestAvatarPresentation.setActiveOutfit($0) }
         .onChange(of: avatar.requestedOutfit) { requested in
             if let requested { outfit = preferences.resolvedOutfit(requested) }
         }
