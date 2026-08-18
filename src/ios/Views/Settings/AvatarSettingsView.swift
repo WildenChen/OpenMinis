@@ -181,7 +181,8 @@ struct AvatarSettingsView: View {
 
     private func videoDescription(for state: String) -> String {
         if let filename = preferences.mappingOriginalFilename(outfit: selectedOutfit, state: state) {
-            return "(filename) · (String(localized: "Avatar Settings Custom"))"
+            let customSuffix = String(localized: "Avatar Settings Custom")
+            return "\(filename) · \(customSuffix)"
         }
         return preferences.isBuiltIn(selectedOutfit)
             ? String(localized: "Avatar Settings Default")

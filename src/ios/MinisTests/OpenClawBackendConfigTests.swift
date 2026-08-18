@@ -1,4 +1,5 @@
 import XCTest
+@testable import Minis
 
 /// Config/credential coverage for the External Agent Backend settings surface
 /// (issue #4): URL + agent ID save/reload, Keychain-backed credential semantics

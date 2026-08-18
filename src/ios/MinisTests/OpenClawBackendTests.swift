@@ -1,4 +1,5 @@
 import XCTest
+@testable import Minis
 
 /// Focused tests for the OpenClaw external agent backend adapter: session-key
 /// mapping, wire-format conversion, and SSE parsing. Network/transport is not
@@ -42,7 +43,7 @@ final class OpenClawBackendTests: XCTestCase {
         let request = AgentBackendRequest(
             session: AgentBackendSession(openMinisSessionID: "chat-A"),
             messages: [AgentMessage(role: .user, parts: [.text("Hello")])],
-            systemPrompt: nil, tools: [], maxTokens: 123, thinkingLevel: .none
+            systemPrompt: nil, tools: [], maxTokens: 123, thinkingLevel: .off
         )
         let urlRequest = try HermesBackend.urlRequest(
             endpoint: URL(string: "https://hermes.example")!, profileID: "xiaomi",
@@ -57,7 +58,7 @@ final class OpenClawBackendTests: XCTestCase {
 
     func testHermesSessionIdentitySeparatesChatsAndSurvivesRetry() throws {
         func header(for chatID: String) throws -> String? {
-            let request = AgentBackendRequest(session: AgentBackendSession(openMinisSessionID: chatID), messages: [], systemPrompt: nil, tools: [], maxTokens: 0, thinkingLevel: .none)
+            let request = AgentBackendRequest(session: AgentBackendSession(openMinisSessionID: chatID), messages: [], systemPrompt: nil, tools: [], maxTokens: 0, thinkingLevel: .off)
             return try HermesBackend.urlRequest(endpoint: URL(string: "https://hermes.example")!, profileID: nil, credential: "token", model: HermesBackend.defaultModel, request: request)
                 .value(forHTTPHeaderField: "X-Hermes-Session-Id")
         }
@@ -76,7 +77,7 @@ final class OpenClawBackendTests: XCTestCase {
             ],
             systemPrompt: nil,
             tools: [AgentToolDefinition(name: "location", description: "phone", parameters: [:], required: [])],
-            maxTokens: 0, thinkingLevel: .none
+            maxTokens: 0, thinkingLevel: .off
         ), model: HermesBackend.defaultModel)
         XCTAssertNil(body["tools"])
         let messages = body["messages"] as? [[String: Any]]

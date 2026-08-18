@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E5SNAT001 /* SoulNestAvatarTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5SNAT002 /* SoulNestAvatarTool.swift */; };
+
 		E5AVS0001 /* AvatarSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5AVS0002 /* AvatarSettingsView.swift */; };
 
 		21FED4B7BB6F6D9476C9992E /* VoiceProvider+System.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88993FC8E3F0199C6638F664 /* VoiceProvider+System.swift */; };
@@ -582,6 +584,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E5SNAT002 /* SoulNestAvatarTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoulNestAvatarTool.swift; sourceTree = "<group>"; };
+
 		E5AVS0002 /* AvatarSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarSettingsView.swift; sourceTree = "<group>"; };
 
 		0ED149397BEA7E0408C92688 /* GroupVoiceModelsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GroupVoiceModelsView.swift; sourceTree = "<group>"; };
@@ -1148,6 +1152,11 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				ThinkingLevelTests.swift,
+				Standalone/SkillDescriptionStaleTests.swift,
+				ThinkingRulesRegressionTests.swift,
+				ThinkingWireGeminiAnthropicSnapshotTests.swift,
+				ThinkingWireGoldenSnapshotTests.swift,
+				ThinkingRulePersistenceTests.swift,
 			);
 			target = BB1000070F700000000000AA /* MinisTests */;
 		};
@@ -2090,6 +2099,7 @@
 		F1V00010 /* Chat */ = {
 			isa = PBXGroup;
 			children = (
+				E5SNAT002 /* SoulNestAvatarTool.swift */,
 				E53000012 /* AIChatView.swift */,
 				E5F200011 /* MarkdownPrepRegex.swift */,
 				E5F200012 /* MinisMediaViews.swift */,
@@ -2251,6 +2261,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				AA8A56922F6FBB7A00A3E54E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				BB1000012F700000000000AA /* MinisTests */,
@@ -2542,7 +2553,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB1000120F700000000000AA /* ContextPolicy.swift in Sources */,
-				E5AVT00003 /* AvatarShellWebViewController.swift in Sources */,
 				E5LD00002 /* ToolLoopDetector.swift in Sources */,
 				E5GWF0004 /* GeminiWireFormat.swift in Sources */,
 				E5JB10001 /* JiebaWrapper.mm in Sources */,
@@ -2564,22 +2574,6 @@
 				E5KIMI0A2 /* KimiOAuthRefreshCoordinator.swift in Sources */,
 				E5KIMI0B2 /* KimiDeviceFlow.swift in Sources */,
 				E5OARC003 /* LLMError.swift in Sources */,
-				E3B100001 /* LLMTypes.swift in Sources */,
-				E3B100002 /* AgentProvider.swift in Sources */,
-				E3B100003 /* ModelEntry.swift in Sources */,
-				E3B100004 /* LLMSessionRegistry.swift in Sources */,
-				E3B100005 /* AgentBackendConfig.swift in Sources */,
-				E3B100006 /* AgentBackendProtocol.swift in Sources */,
-				E3B100007 /* AgentBackendProvider.swift in Sources */,
-				E3B100008 /* AgentBackendRegistry.swift in Sources */,
-				E3B100009 /* AgentBackendConfigStore.swift in Sources */,
-				E3B100010 /* OpenClawBackendConfig.swift in Sources */,
-				E3B100011 /* OpenClawBackend.swift in Sources */,
-				E3C100001 /* OpenClawBackendCredentialStore.swift in Sources */,
-				E3B100012 /* ModelsDevAPI.swift in Sources */,
-				E3B100013 /* ThinkingLevelCatalog.swift in Sources */,
-				E3B100014 /* ModelGroup.swift in Sources */,
-				E5ATP002 /* AgentToolPreflight.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -2587,6 +2581,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5SNAT001 /* SoulNestAvatarTool.swift in Sources */,
+				E5AVS0001 /* AvatarSettingsView.swift in Sources */,
 				AC0000202 /* ProviderCustomizationGenerated.swift in Sources */,
 				E54000AC1 /* DebugSkillGenerated.swift in Sources */,
 				E5FP00100 /* AppGroupChangeWatcher.swift in Sources */,
@@ -2818,6 +2814,8 @@
 				E3B000001 /* AgentBackendConfig.swift in Sources */,
 				E3B000002 /* AgentBackendProtocol.swift in Sources */,
 				E3B000003 /* AgentBackendProvider.swift in Sources */,
+				E3B100008 /* AgentBackendRegistry.swift in Sources */,
+				E3B100009 /* AgentBackendConfigStore.swift in Sources */,
 				E3B000006 /* OpenClawBackendConfig.swift in Sources */,
 				E3B000018 /* OpenClawNativeProvider.swift in Sources */,
 				E3D000001 /* FirstClassAgentBackendProvider.swift in Sources */,
