@@ -31,6 +31,7 @@ These areas are expected to contain fork-specific implementation and should norm
 src/ios/Providers/AgentBackend/
 src/ios/Resources/Avatar/
 src/ios/WebApp/AvatarShellWebViewController.swift
+src/ios/Views/Settings/AvatarSettingsView.swift
 docs/specs/soulnest-*.md
 docs/development/multi-agent-workflow.md
 docs/development/upstream-sync.md
@@ -41,20 +42,38 @@ Future SoulNest features should prefer these or similarly dedicated areas rather
 
 ## Intentional upstream-owned touch points
 
-As of the merged External Agent Backend + OpenClaw adapter + Avatar shell, the intentional integration hooks are:
+As of the upstream v1.12 sync, the intentional integration hooks are:
 
-- `src/ios/Agent/Chat/AIChatViewModel+Fallback.swift`
-  - narrow session-aware streaming dispatch for `SessionAwareAgentProvider`
+- `src/ios/Agent/Chat/AIChatViewModel+ConcurrentTools.swift`
+  - 2-line execution hook delegating `avatar_presentation` to `SoulNestAvatarTool.execute`
 - `src/ios/Agent/Chat/AIChatViewModel+ProviderFactory.swift`
-  - resolve/make the active external backend provider without special-casing existing raw-LLM providers
+  - resolve/make the active external backend provider (.openClaw, .hermes) without special-casing existing raw-LLM providers
+- `src/ios/Agent/Chat/AIChatViewModel+ToolDefinitions.swift`
+  - 2-line registration hook delegating `avatar_presentation` tool schema to `SoulNestAvatarTool.definition`
 - `src/ios/Agent/Chat/AIChatViewModel.swift`
-  - small model-metadata fallback adjustments needed for the synthetic backend entry
+  - model fallback metadata adjustments and System-TTS synthesizer delegate hook for Avatar lifecycle tracking
+- `src/ios/Debug/DebugRPCProviderChat.swift`
+  - credential and custom base support for first-class OpenClaw/Hermes providers in debug RPC
 - `src/ios/MinisApp.swift`
-  - register external backend adapters at startup and present the SoulNest Avatar shell
-- `src/ios/Shared/DeepLinkRouter.swift`
-  - route `minis://avatar`
+  - AppGroup identifier and FileProvider domain identifier for SoulNest bundle identity
 - `src/ios/Minis.xcodeproj/project.pbxproj`
-  - register SoulNest source files/resources in the iOS target/test target
+  - register SoulNest source files/resources and target bundle identifiers / marketing version
+- `src/ios/Providers/LLMProviderFactory.swift`
+  - voiceOnlyProvider branch for .openClaw / .hermes
+- `src/ios/Providers/ProviderConfigStore.swift`
+  - legacy OpenClaw marker migration during provider config initialization
+- `src/ios/Providers/Voice/VoiceProviderFactory.swift`
+  - nil branch for .openClaw / .hermes
+- `src/ios/Views/Chat/AIChatView.swift`
+  - primary immersive Avatar shell fullScreenCover presentation and mic turn bridge
+- `src/ios/Views/Chat/ChatInputBar.swift`
+  - VideoFileTransferable original filename preservation for Avatar custom video import
+- `src/ios/Views/ContentView.swift`
+  - navigation link to AvatarSettingsView and launch-time ensureChatForPendingAvatar hook
+- `src/ios/Views/Providers/AddProviderView.swift`
+  - configuration section for OpenClaw Gateway / Hermes provider types
+- `src/ios/Views/Providers/ProviderInstanceDetailView.swift`
+  - agent target ID and non-synced Keychain credential handling for external backend instances
 
 Treat edits outside this list as suspicious during upstream sync unless a later SoulNest Issue explicitly adds a new intentional hook. Update this document whenever the intentional touch-point list changes.
 
@@ -132,4 +151,4 @@ If project/build files, native dependencies, signing, or device APIs changed ups
 
 When completing a sync, record the upstream release/tag/commit in the sync PR description. Do not rely on memory to determine the next diff base.
 
-The first SoulNest fork work in this repository was based on upstream commit `9cf3a855fecd27bb5735b84cacbd56852a3ab8dd`; future sync PRs should update the recorded integrated upstream base after successful merge.
+Current integrated upstream base is commit `09fc199928de0f26685e766c34e6d541c7a69e5a` (tag `1.12`, PR #243). Earlier base was `9cf3a855fecd27bb5735b84cacbd56852a3ab8dd`.
