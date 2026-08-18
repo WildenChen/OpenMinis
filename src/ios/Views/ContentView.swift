@@ -676,6 +676,7 @@ struct ContentView: View {
                     }
                 }
             }
+            ensureChatForPendingAvatar()
             didInitialLoad = true
             fetchAlarmsIfNeeded()
             await refreshRemoteDeviceSessions()
@@ -852,6 +853,10 @@ struct ContentView: View {
             // list refresh completes.
             selectedSessionId = sid
             deepLink.pendingSessionId = nil
+        }
+        .onChange(of: deepLink.pendingAvatarPresentation) { pending in
+            guard pending else { return }
+            ensureChatForPendingAvatar()
         }
         .onChange(of: scenePhase) { phase in
             // [T-ios-scenephase-active-sigkill] Defer ALL .active work off the
@@ -1865,6 +1870,21 @@ struct ContentView: View {
         } else {
             navigationPath.append(id)
             currentStackSessionId = id
+        }
+    }
+
+    private func ensureChatForPendingAvatar() {
+        guard deepLink.pendingAvatarPresentation else { return }
+        // minis://avatar must be hosted by a real chat so send, voice,
+        // errors and session continuity remain functional. If no chat is
+        // mounted, open the latest one (or a fresh draft); AIChatView
+        // consumes the pending flag when it appears.
+        if isWideLayout {
+            if selectedSessionId == nil || selectedSessionId?.hasPrefix("remote:") == true {
+                openSession(sessions.first?.id ?? Self.makeNewSessionId())
+            }
+        } else if currentStackSessionId == nil || currentStackSessionId?.hasPrefix("remote:") == true {
+            openSession(sessions.first?.id ?? Self.makeNewSessionId())
         }
     }
 

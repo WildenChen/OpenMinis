@@ -126,11 +126,14 @@ final class NativeAvatarPresentationTests: XCTestCase {
 
     func testAgentPresentationIgnoresUnavailableMediaWithoutChangingAvatar() {
         let avatar = NativeAvatarState()
-        let notification = expectation(description: "no presentation notification")
-        notification.isInverted = true
+        let notification = expectation(description: "unavailable presentation notice")
         let observer = NotificationCenter.default.addObserver(
             forName: .soulNestAvatarPresentation, object: nil, queue: .main
-        ) { _ in notification.fulfill() }
+        ) { note in
+            if note.userInfo?["action"] as? String == "notice" {
+                notification.fulfill()
+            }
+        }
         defer { NotificationCenter.default.removeObserver(observer) }
 
         let result = SoulNestAvatarPresentation.agentPresentation(
@@ -140,9 +143,48 @@ final class NativeAvatarPresentationTests: XCTestCase {
         )
 
         XCTAssertEqual(result, "Ignored unavailable Avatar presentation.")
-        wait(for: [notification], timeout: 0.1)
+        wait(for: [notification], timeout: 1)
         XCTAssertEqual(avatar.emotion, .neutral)
         XCTAssertNil(avatar.requestedOutfit)
+        XCTAssertFalse(avatar.notice.isEmpty)
+    }
+
+    func testThinkingClearsPreviousSubtitle() {
+        let avatar = NativeAvatarState()
+        SoulNestAvatarPresentation.talking(subtitle: "Previous answer")
+        XCTAssertEqual(avatar.subtitle, "Previous answer")
+
+        SoulNestAvatarPresentation.thinking()
+
+        XCTAssertEqual(avatar.state, "thinking")
+        XCTAssertTrue(avatar.subtitle.isEmpty)
+    }
+
+    func testAvatarSubtitleKeepsRecentBoundedText() {
+        let prefix = String(repeating: "a", count: 50)
+        let suffix = String(repeating: "b", count: NativeAvatarSubtitle.characterLimit)
+
+        XCTAssertEqual(NativeAvatarSubtitle.displayText(prefix + suffix), suffix)
+        XCTAssertEqual(NativeAvatarSubtitle.displayText("short"), "short")
+    }
+
+    func testAvatarComposerRetainsRejectedMessage() {
+        let result = NativeAvatarComposer.submit("  keep this  ") { _ in false }
+
+        XCTAssertFalse(result.accepted)
+        XCTAssertEqual(result.remainingText, "  keep this  ")
+    }
+
+    func testAvatarComposerClearsAcceptedMessageAndTrimsPayload() {
+        var payload = ""
+        let result = NativeAvatarComposer.submit("  send this  ") {
+            payload = $0
+            return true
+        }
+
+        XCTAssertTrue(result.accepted)
+        XCTAssertTrue(result.remainingText.isEmpty)
+        XCTAssertEqual(payload, "send this")
     }
 
     func testPlayerKeepsCurrentItemWhenUpdatedWithNilURL() throws {

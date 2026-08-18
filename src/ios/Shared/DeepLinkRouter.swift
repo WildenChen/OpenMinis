@@ -9,10 +9,6 @@ extension Notification.Name {
     /// necessarily persisted. (Relocated here from the removed
     /// OpenWebAppIntent.swift — T-ios-remove-open-webapp-shortcut-intent.)
     static let openWebAppDeepLink = Notification.Name("openWebAppDeepLink")
-    /// Posted by `DeepLinkRouter` when `minis://avatar` lands. Presents the
-    /// SoulNest avatar shell (see `AvatarShellWebViewController`). No
-    /// userInfo — the shell is bundled, not path-resolved.
-    static let openAvatarShellDeepLink = Notification.Name("openAvatarShellDeepLink")
 }
 
 /// Parses `minis://` URLs into navigation actions and dispatches them
@@ -315,14 +311,14 @@ enum DeepLinkRouter {
 
     /// Presents the bundled SoulNest avatar shell. Dismisses any leftover
     /// fullScreenCover (same dance as `handleWebAppLauncherReturn`) so the
-    /// cover actually surfaces, then posts `.openAvatarShellDeepLink`.
+    /// active chat can present the Avatar with its real session-bound actions.
     @MainActor
     private static func openAvatarShell() {
         deepLinkLog.info("minis://avatar — opening avatar shell")
         NotificationCenter.default.post(name: .dismissAllImmersivePresentations, object: nil)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
-            NotificationCenter.default.post(name: .openAvatarShellDeepLink, object: nil)
+            DeepLinkCoordinator.shared.pendingAvatarPresentation = true
         }
     }
 }

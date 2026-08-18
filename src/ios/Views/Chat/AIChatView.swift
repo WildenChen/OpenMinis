@@ -599,16 +599,31 @@ struct AIChatView: View {
         // the mounted chat rather than the app root so its native bridge always
         // reaches this session's real ViewModel; dismissing it reveals the
         // existing chat history as the secondary surface.
-        .fullScreenCover(isPresented: $isAvatarPrimaryPresented) {
+        .fullScreenCover(isPresented: $isAvatarPrimaryPresented, onDismiss: {
+            stopAvatarVoiceTurn()
+        }) {
             NativeAvatarView(
                 onClose: { isAvatarPrimaryPresented = false },
                 onSend: { text in
-                    guard !isReadOnly, !vm.isProcessing else { return }
+                    guard !isReadOnly else { return false }
+                    if vm.isProcessing {
+                        vm.inputText = text
+                        performEnqueue()
+                        return true
+                    }
+                    guard vm.isReady else { return false }
                     vm.inputText = text
                     performSend()
+                    return true
                 },
                 onMic: {
-                    guard !isReadOnly, !vm.isProcessing else { return }
+                    guard !isReadOnly else { return }
+                    if avatarVoiceTurnActive {
+                        stopAvatarVoiceTurn()
+                        SoulNestAvatarPresentation.idle()
+                        return
+                    }
+                    guard !vm.isProcessing else { return }
                     vm.voiceUsedInComposition = true
                     VoiceModePreference.shared.enteredFromText = true
                     withAnimation(.easeInOut(duration: 0.2)) { voiceInputActive = true }
@@ -619,7 +634,14 @@ struct AIChatView: View {
                         guard avatarVoiceTurnActive, !vm.isProcessing else { return }
                         voiceVM.handleMainButtonTap()
                     }
-                }
+                },
+                isReadOnly: isReadOnly,
+                isAgentBusy: vm.isProcessing,
+                voiceState: avatarVoiceState,
+                errorMessage: vm.errorMessage,
+                noticeMessage: vm.transientNotice,
+                onDismissError: { vm.errorMessage = nil },
+                onDismissNotice: { vm.transientNotice = nil }
             )
                 .statusBar(hidden: true)
         }
@@ -1225,7 +1247,9 @@ struct AIChatView: View {
             injectPendingTransferIfNeeded()
             isChatViewVisible = true
             refreshTitlePillSession()
-            if !isReadOnly && NativeAvatarPreferences.shared.autoOpen && !didPresentAvatarPrimary {
+            if deepLink.pendingAvatarPresentation {
+                presentPendingAvatarIfNeeded()
+            } else if !isReadOnly && NativeAvatarPreferences.shared.autoOpen && !didPresentAvatarPrimary {
                 didPresentAvatarPrimary = true
                 DispatchQueue.main.async {
                     guard isChatViewVisible else { return }
@@ -1371,6 +1395,9 @@ struct AIChatView: View {
                 deepLink.terminalInitCommand = nil
             }
         }
+        .onChange(of: deepLink.pendingAvatarPresentation) { pending in
+            if pending { presentPendingAvatarIfNeeded() }
+        }
         .onChange(of: vm.isProcessing) { processing in
             if !processing {
                 // Reply reading is handled INCREMENTALLY during streaming (the
@@ -1406,10 +1433,16 @@ struct AIChatView: View {
             guard avatarVoiceTurnActive, state == .result,
                   !vm.isProcessing else { return }
             let text = voiceVM.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return }
+            guard !text.isEmpty else {
+                stopAvatarVoiceTurn()
+                SoulNestAvatarPresentation.idle()
+                return
+            }
             avatarVoiceTurnActive = false
             vm.inputText = text
             performSend()
+            voiceInputActive = false
+            voiceVM.reset()
         }
         // [T-ios-retry-hide-when-processing] Inject the view model so deep
         // descendants (e.g. ToolCapsuleView's long-press menu) can react to
@@ -4202,6 +4235,36 @@ struct AIChatView: View {
         if voiceInputActive {
             voiceVM.clearAndRearm()
         }
+    }
+
+    private var avatarVoiceState: NativeAvatarVoiceState {
+        guard avatarVoiceTurnActive else { return .idle }
+        if voiceVM.permissionDenied {
+            return .failed(String(localized: "Microphone access denied — enable it in Settings"))
+        }
+        if let error = voiceVM.startError ?? voiceVM.transcribeError {
+            return .failed(error)
+        }
+        switch voiceVM.state {
+        case .waiting: return .starting
+        case .recording: return .listening
+        case .processing, .result: return .processing
+        }
+    }
+
+    private func presentPendingAvatarIfNeeded() {
+        guard deepLink.pendingAvatarPresentation, isChatViewVisible, !isReadOnly else { return }
+        deepLink.pendingAvatarPresentation = false
+        didPresentAvatarPrimary = true
+        isAvatarPrimaryPresented = true
+    }
+
+    private func stopAvatarVoiceTurn() {
+        guard avatarVoiceTurnActive else { return }
+        avatarVoiceTurnActive = false
+        voiceInputActive = false
+        voiceVM.cancelTranscription()
+        voiceVM.reset()
     }
 
     /// Whether the floating tool preview is visible.
