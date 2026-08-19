@@ -729,6 +729,27 @@ final class OpenClawBackendTests: XCTestCase {
         XCTAssertTrue(AgentBackendActiveState.isBackendEntry(resolved.entry))
     }
 
+    func testFirstClassAgentBackendStreamYieldsEventsImmediately() async throws {
+        let stream = AsyncThrowingStream<String, Error> { continuation in
+            continuation.yield(#"data: {"choices":[{"delta":{"content":"Hel"}}]}"#)
+            continuation.yield(#"data: {"choices":[{"delta":{"content":"lo"}}]}"#)
+            continuation.yield(#"data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"#)
+            continuation.yield("data: [DONE]")
+            continuation.finish()
+        }
+        let eventStream = OpenClawBackend.parseSSE(stream)
+        var received: [AgentStreamEvent] = []
+        for try await event in eventStream {
+            received.append(event)
+            if received.count == 2 {
+                if case .textDelta(let text) = event {
+                    XCTAssertEqual(text, "Hel")
+                }
+            }
+        }
+        XCTAssertEqual(received.count, 4)
+    }
+
     @MainActor
     func testActiveStateNilWhenNoBackendConfigured() {
         AgentBackendConfigStore.setActive(nil)

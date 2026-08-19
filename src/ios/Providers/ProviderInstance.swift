@@ -291,7 +291,10 @@ struct ProviderInstance: Identifiable, Codable, Hashable {
             return ProviderKeychainHelper.loadOAuthToken(
                 instanceId: id, as: KimiTokenStorage.self, caller: "hasAnyCredential"
             ) != nil
-        case .antigravity, .openRouter, .openClaw, .hermes, .unsupported:
+        case .hermes:
+            // Hermes uses Keychain-backed token via FirstClassAgentBackendProvider
+            return FirstClassAgentBackendProvider.credential(for: self)?.isEmpty == false
+        case .antigravity, .openRouter, .openClaw, .unsupported:
             // unsupported = synced from a newer build; no usable credential here.
             // antigravity stores its token via AntigravityOAuthManager (no
             // standalone Codable used by the diagnostic); OpenRouter is
